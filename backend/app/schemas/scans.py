@@ -57,6 +57,18 @@ class ScanCreate(BaseModel):
         default_factory=list,
         max_length=MAX_NEW_MEASUREMENTS_PER_SCAN,
     )
+    client_scan_id: str | None = Field(
+        default=None,
+        min_length=8,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9._:-]+$",
+        description=(
+            "Client-generated unique ID for this scan. Sending the same ID with the same body again returns the "
+            "stored scan (HTTP 200) instead of creating a duplicate. Sending it with a different body returns 409 "
+            "idempotency_conflict. Omit it for legacy clients."
+        ),
+        examples=["3f2c1a9e-6b1d-4f0e-9a33-2d7c5e8b1a10"],
+    )
 
 
 class WellbeingOut(ApiModel):
@@ -141,6 +153,7 @@ class ScanOut(ApiModel):
 
     id: int
     astronaut_id: int
+    client_scan_id: str | None = None
     submitted_at: UtcDatetime
     as_of: UtcDatetime
     mission_day: int

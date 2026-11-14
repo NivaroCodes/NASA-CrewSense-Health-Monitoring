@@ -15,6 +15,15 @@ def get_scan(session: Session, scan_id: int) -> HealthScan | None:
     return session.get(HealthScan, scan_id)
 
 
+def find_by_client_scan_id(session: Session, *, astronaut_id: int, client_scan_id: str) -> HealthScan | None:
+    return session.scalar(
+        select(HealthScan).where(
+            HealthScan.astronaut_id == astronaut_id,
+            HealthScan.client_scan_id == client_scan_id,
+        )
+    )
+
+
 def last_scan_at_or_before(session: Session, *, astronaut_id: int, as_of: datetime) -> HealthScan | None:
     return session.scalar(
         select(HealthScan)

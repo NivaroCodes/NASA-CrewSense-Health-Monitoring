@@ -9,7 +9,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.domain.errors import DomainValidationError, DuplicateMeasurementError, NotFoundError
+from app.domain.errors import (
+    DomainValidationError,
+    DuplicateMeasurementError,
+    IdempotencyConflictError,
+    NotFoundError,
+)
 
 
 def _envelope(status: int, code: str, message: str, details: list[dict[str, str]] | None = None) -> JSONResponse:
@@ -53,6 +58,15 @@ def register_error_handlers(app: FastAPI) -> None:
             "duplicate_measurement",
             "An identical measurement already exists.",
             [{"field": "observed_at", "message": message}],
+        )
+
+    @app.exception_handler(IdempotencyConflictError)
+    async def _idempotency_conflict(_: Request, exc: IdempotencyConflictError) -> JSONResponse:
+        return _envelope(
+            409,
+            "idempotency_conflict",
+            "This client_scan_id was already submitted with different data.",
+            [{"field": "client_scan_id", "message": "Use a new client_scan_id for a different scan."}],
         )
 
     @app.exception_handler(RequestValidationError)

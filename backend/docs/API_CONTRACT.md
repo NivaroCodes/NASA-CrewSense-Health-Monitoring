@@ -511,8 +511,18 @@ If any entry in `new_measurements` fails validation, the whole request is reject
 | `wellbeing.symptoms` | no | Array of `symptom` values. Unique. Default `[]`. |
 | `wellbeing.notes` | no | Max 500 characters. |
 | `new_measurements` | no | Array of measurements with the fields of section 4 except `astronaut_id`. Max 20. Each is validated by the same rules as `POST /measurements`. |
+| `client_scan_id` | no | String, 8–64 characters, letters, digits, `.`, `_`, `:`, `-` only. Client-generated unique ID for this scan (idempotency key). See "Idempotent submission" below. |
 
-**Response 201**
+**Idempotent submission**
+
+- A client sets `client_scan_id` once, when the scan begins, and sends the same value on every retry.
+- The same `client_scan_id` with the same body returns the stored scan with **HTTP 200**. Nothing is written: no scan, no measurements, no alerts, no baselines.
+- The same `client_scan_id` with a different body returns **409** with code `idempotency_conflict`, and nothing is written. The `client_scan_id` is then unavailable for another body; the client must use a new ID.
+- Two identical requests sent at the same moment result in one stored scan. The second request gets the stored scan (200).
+- Scans without `client_scan_id` (legacy clients) are stored every time, as before.
+- Equality of bodies is decided by a SHA-256 fingerprint of the canonical request body, excluding `client_scan_id`. The `as_of` value is part of the body, so a retry must reuse the exact body the client stored.
+
+**Response 201** (new scan) or **200** (replay of an earlier submission with the same `client_scan_id`)
 
 ```json
 {

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db, get_now
@@ -16,13 +16,26 @@ from app.services import scan_service
 router = APIRouter(tags=["scans"])
 
 
-@router.post("/scans", status_code=201, response_model=ScanOut, summary="Submit a Daily Health Scan")
+@router.post(
+    "/scans",
+    status_code=201,
+    response_model=ScanOut,
+    summary="Submit a Daily Health Scan",
+    responses={
+        200: {"description": "client_scan_id was already submitted with the same body; the stored scan is returned."},
+        409: {"description": "client_scan_id was already used with a different body (idempotency_conflict)."},
+    },
+)
 def submit_scan(
     body: ScanCreate,
+    response: Response,
     db: Session = Depends(get_db),
     now: datetime = Depends(get_now),
 ) -> ScanOut:
-    return scan_service.submit_scan(db, body, now=now)
+    scan, replayed = scan_service.submit_scan(db, body, now=now)
+    if replayed:
+        response.status_code = 200
+    return scan
 
 
 @router.get("/scans", response_model=Page[ScanListItem], summary="Scan history, newest first")

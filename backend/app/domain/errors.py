@@ -31,3 +31,11 @@ class DuplicateMeasurementError(DomainError):
     def __init__(self, existing_id: int | None) -> None:
         super().__init__("An identical measurement already exists.")
         self.existing_id = existing_id
+
+
+class IdempotencyConflictError(DomainError):
+    """The same client_scan_id was submitted again, but with a different body."""
+
+    def __init__(self, existing_scan_id: int) -> None:
+        super().__init__("This client_scan_id was already used for a different scan.")
+        self.existing_scan_id = existing_scan_id

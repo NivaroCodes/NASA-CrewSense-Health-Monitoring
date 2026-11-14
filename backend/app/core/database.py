@@ -42,6 +42,29 @@ def init_db(engine: Engine) -> None:
     from app import models  # noqa: F401  (registers ORM classes)
 
     Base.metadata.create_all(engine)
+    _upgrade_scan_idempotency(engine)
+
+
+def _upgrade_scan_idempotency(engine: Engine) -> None:
+    """Add the scan idempotency columns and index to a SQLite database created before they existed.
+
+    create_all() never alters existing tables, so older databases would otherwise lack the columns.
+    The change is additive: existing rows are kept and get NULL, which means "submitted without a client_scan_id".
+    """
+    if engine.dialect.name != "sqlite":
+        return
+    with engine.begin() as conn:
+        columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(health_scans)")}
+        if not columns:
+            return
+        if "client_scan_id" not in columns:
+            conn.exec_driver_sql("ALTER TABLE health_scans ADD COLUMN client_scan_id VARCHAR(64)")
+        if "request_fingerprint" not in columns:
+            conn.exec_driver_sql("ALTER TABLE health_scans ADD COLUMN request_fingerprint VARCHAR(64)")
+        conn.exec_driver_sql(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_health_scans_astronaut_client_scan_id "
+            "ON health_scans (astronaut_id, client_scan_id) WHERE client_scan_id IS NOT NULL"
+        )
 
 
 def to_db_utc(value: datetime) -> datetime:

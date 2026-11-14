@@ -11,15 +11,24 @@ retrieved later is identical to the one returned on submission.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime, timedelta
 
 from sqlalchemy import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import from_db_utc, to_db_utc
 from app.core.monitoring_config import FUTURE_TOLERANCE_MINUTES
 from app.domain.analysis import evaluate
-from app.domain.errors import DomainValidationError, FieldIssue, NotFoundError
+from app.domain.errors import (
+    DomainValidationError,
+    DuplicateMeasurementError,
+    FieldIssue,
+    IdempotencyConflictError,
+    NotFoundError,
+)
 from app.domain.metrics import METRICS
 from app.domain.mission import mission_day
 from app.domain.recommendations import DISCLAIMER, build_next_steps
@@ -48,7 +57,55 @@ from app.schemas.scans import (
 from app.services import measurement_service
 
 
-def submit_scan(session: Session, body: ScanCreate, *, now: datetime) -> ScanOut:
+def submit_scan(session: Session, body: ScanCreate, *, now: datetime) -> tuple[ScanOut, bool]:
+    """Store a scan, or return the earlier one when the same client_scan_id was already submitted.
+
+    Returns (scan, replayed). replayed is True when no new scan was created.
+
+    Duplicate handling:
+    - Same client_scan_id, same body: the stored scan is returned. Nothing is written.
+    - Same client_scan_id, different body: IdempotencyConflictError (HTTP 409).
+    - Two identical requests racing: the unique index rejects the second insert. Its transaction is rolled back
+      (so its staged measurements are discarded too) and the stored scan is then returned or the conflict raised.
+    """
+    _load_astronaut(session, body.astronaut_id)
+    fingerprint = request_fingerprint(body) if body.client_scan_id else None
+
+    if body.client_scan_id:
+        existing = scan_repo.find_by_client_scan_id(
+            session, astronaut_id=body.astronaut_id, client_scan_id=body.client_scan_id
+        )
+        if existing is not None:
+            return _replay(session, existing, fingerprint), True
+
+    try:
+        return _submit_new(session, body, now=now, fingerprint=fingerprint), False
+    except (IntegrityError, DuplicateMeasurementError):
+        session.rollback()
+        existing = (
+            scan_repo.find_by_client_scan_id(session, astronaut_id=body.astronaut_id, client_scan_id=body.client_scan_id)
+            if body.client_scan_id
+            else None
+        )
+        if existing is None:
+            raise
+        return _replay(session, existing, fingerprint), True
+
+
+def request_fingerprint(body: ScanCreate) -> str:
+    """SHA-256 of the canonical request body, excluding client_scan_id, so a retry with the same data matches."""
+    payload = body.model_dump(mode="json", exclude={"client_scan_id"})
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _replay(session: Session, existing: HealthScan, fingerprint: str | None) -> ScanOut:
+    if existing.request_fingerprint != fingerprint:
+        raise IdempotencyConflictError(existing.id)
+    return get_scan(session, existing.id)
+
+
+def _submit_new(session: Session, body: ScanCreate, *, now: datetime, fingerprint: str | None) -> ScanOut:
     astronaut = _load_astronaut(session, body.astronaut_id)
     as_of = body.as_of or now
     if as_of > now + timedelta(minutes=FUTURE_TOLERANCE_MINUTES):
@@ -97,6 +154,8 @@ def submit_scan(session: Session, body: ScanCreate, *, now: datetime) -> ScanOut
     # 4. Persist the scan and its related rows.
     scan = HealthScan(
         astronaut_id=astronaut.id,
+        client_scan_id=body.client_scan_id,
+        request_fingerprint=fingerprint,
         submitted_at=to_db_utc(now),
         as_of=to_db_utc(as_of),
         mission_day=mission_day(astronaut.mission_start_date, as_of),
@@ -183,6 +242,7 @@ def get_scan(session: Session, scan_id: int) -> ScanOut:
     return ScanOut(
         id=scan.id,
         astronaut_id=scan.astronaut_id,
+        client_scan_id=scan.client_scan_id,
         submitted_at=from_db_utc(scan.submitted_at),
         as_of=from_db_utc(scan.as_of),
         mission_day=scan.mission_day,
