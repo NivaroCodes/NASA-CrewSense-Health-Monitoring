@@ -38,3 +38,11 @@ describe('computeMissing', () => {
     expect(computeMissing([])).toEqual(expect.arrayContaining(['heartRate', 'glucose', 'temperature', 'sleep']));
   });
 });
+
+describe('demo overview', () => {
+  it('has one deliberate gap, so the manual-entry step runs in the demonstration', async () => {
+    const { DEMO_OVERVIEW } = await import('../../services/api/fixtures');
+    expect(computeMissing(DEMO_OVERVIEW.readings)).toEqual(['systolic', 'diastolic']);
+    expect(DEMO_OVERVIEW.monitoring.missing).toBe(1);
+  });
+});

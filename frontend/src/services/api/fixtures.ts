@@ -12,11 +12,12 @@ export const DEMO_OVERVIEW: HealthOverview = {
     activeSources: 5,
     totalSources: 6,
     needingAttention: 1,
-    missing: 0,
+    missing: 1,
   },
   readings: [
     { id: 'heartRate', name: 'Heart rate', value: '72', unit: 'bpm', measuredAt: minutesAgo(2), provenance: 'SYNTHETIC', status: 'Normal', change: '+1 vs last scan' },
-    { id: 'bloodPressure', name: 'Blood pressure', value: '118/78', unit: 'mmHg', measuredAt: minutesAgo(180), provenance: 'SYNTHETIC', status: 'Normal' },
+    // Deliberate gap: the demo cuff reading is missing, so the Daily Scan asks for it manually (Spec, Section 6, step 4).
+    { id: 'bloodPressure', name: 'Blood pressure', value: null, unit: 'mmHg', measuredAt: null, provenance: undefined, status: undefined },
     { id: 'bloodGlucose', name: 'Blood glucose', value: '95', unit: 'mg/dL', measuredAt: minutesAgo(540), provenance: 'SYNTHETIC', status: 'Normal' },
     { id: 'bodyTemperature', name: 'Body temperature', value: '36.8', unit: '°C', measuredAt: minutesAgo(45), provenance: 'SYNTHETIC', status: 'Normal' },
     { id: 'sleepDuration', name: 'Sleep duration', value: '7.2', unit: 'hrs', measuredAt: minutesAgo(420), provenance: 'SYNTHETIC', status: 'Normal' },
