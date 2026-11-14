@@ -1,12 +1,11 @@
 import type { ErrorDetail, MetricOut, ScanRequirement } from '../../types/api';
 import type { ScanDraft, ScanStep, WellbeingDraft } from '../../types/scanDraft';
 import { validateInBounds } from '../../utils/bounds';
-import { fromLocalInputValue } from '../../utils/datetime';
+import { formatDateTime, fromLocalInputValue } from '../../utils/datetime';
 import { validateDecimal, validateInteger } from '../../utils/validation';
 
 // Client-side checks mirror the contract so most mistakes are caught before a request is made.
 // The server remains the authority; its errors are mapped back onto the same fields.
-export const MAX_FUTURE_SKEW_MS = 5 * 60_000; // contract: observed_at must not be more than 5 minutes ahead
 export const NOTES_MAX = 500;
 
 // Keys: `<metric_key>` for the value, `<metric_key>:observedAt`, `<metric_key>:sourceType`; wellbeing fields by name.
@@ -21,7 +20,9 @@ export interface ScanInputs {
 
 export function measurementErrors(inputs: ScanInputs): FieldErrors {
   const errors: FieldErrors = {};
-  const now = inputs.nowMs ?? Date.now();
+  // Observations must not come after the scan's creation time (draft.startedAt, which is also the request's as_of).
+  // Both sides are compared as instants (Date.parse of the UTC form), never as local text.
+  const startedMs = Date.parse(inputs.draft.startedAt);
   for (const req of inputs.requirements) {
     const entry = inputs.draft.entries[req.metric_key];
     const metric = inputs.metricsByKey.get(req.metric_key);
@@ -35,8 +36,9 @@ export function measurementErrors(inputs: ScanInputs): FieldErrors {
     const observed = entry ? fromLocalInputValue(entry.observedAt) : null;
     if (!observed) {
       errors[`${req.metric_key}:observedAt`] = 'Enter the observation date and time.';
-    } else if (Date.parse(observed) > now + MAX_FUTURE_SKEW_MS) {
-      errors[`${req.metric_key}:observedAt`] = 'The observation time cannot be more than 5 minutes in the future.';
+    } else if (Number.isFinite(startedMs) && Date.parse(observed) > startedMs) {
+      errors[`${req.metric_key}:observedAt`] =
+        `The observation time cannot be after this scan was created (${formatDateTime(inputs.draft.startedAt)}). Use a time on or before it.`;
     }
 
     if (entry && !req.allowed_source_types.includes(entry.sourceType)) {

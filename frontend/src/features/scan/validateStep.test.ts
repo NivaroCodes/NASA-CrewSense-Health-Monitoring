@@ -61,14 +61,45 @@ describe('measurementErrors', () => {
     expect(errors).toEqual({});
   });
 
-  it('rejects an observation more than five minutes in the future, as the contract does', () => {
+  it('rejects an observation after the scan was created (draft.startedAt = 07:30Z)', () => {
     const errors = measurementErrors({
       requirements: [requirements[0]],
       metricsByKey,
       nowMs: NOW,
       draft: draftWith({ systolic_bp: { value: '118', observedAt: local('2026-11-13T07:40:00Z'), sourceType: 'manual_input' } }),
     });
-    expect(errors['systolic_bp:observedAt']).toMatch(/future/);
+    expect(errors['systolic_bp:observedAt']).toMatch(/after this scan was created/);
+  });
+
+  it('accepts an observation exactly at the scan creation time', () => {
+    const errors = measurementErrors({
+      requirements: [requirements[0]],
+      metricsByKey,
+      nowMs: NOW,
+      draft: draftWith({ systolic_bp: { value: '118', observedAt: local('2026-11-13T07:30:00Z'), sourceType: 'manual_input' } }),
+    });
+    expect(errors).toEqual({});
+  });
+
+  it('compares instants: the scan creation time keeps its milliseconds, the observation is minute-precision', () => {
+    const draft = { ...draftWith({ systolic_bp: { value: '118', observedAt: local('2026-11-13T07:30:00Z'), sourceType: 'manual_input' } }), startedAt: '2026-11-13T07:30:00.500Z' };
+    expect(measurementErrors({ requirements: [requirements[0]], metricsByKey, nowMs: NOW, draft })).toEqual({});
+  });
+
+  it('applies the same rule in any timezone: one minute after the start is rejected, one minute before is accepted', () => {
+    const start = '2026-11-13T07:30:00Z';
+    const before = { ...draftWith({ systolic_bp: { value: '118', observedAt: local('2026-11-13T07:29:00Z'), sourceType: 'manual_input' } }), startedAt: start };
+    const after = { ...draftWith({ systolic_bp: { value: '118', observedAt: local('2026-11-13T07:31:00Z'), sourceType: 'manual_input' } }), startedAt: start };
+    expect(measurementErrors({ requirements: [requirements[0]], metricsByKey, nowMs: NOW, draft: before })).toEqual({});
+    expect(measurementErrors({ requirements: [requirements[0]], metricsByKey, nowMs: NOW, draft: after })['systolic_bp:observedAt']).toMatch(/after this scan/);
+  });
+
+  it('still validates a scan restored after a reload, against its stored creation time', () => {
+    const restored: ScanDraft = {
+      ...draftWith({ systolic_bp: { value: '118', observedAt: local('2026-11-13T07:50:00Z'), sourceType: 'manual_input' } }),
+      startedAt: '2026-11-13T07:30:00Z',
+    };
+    expect(measurementErrors({ requirements: [requirements[0]], metricsByKey, nowMs: NOW + 3_600_000, draft: restored })['systolic_bp:observedAt']).toMatch(/after this scan/);
   });
 
   it('reports a missing metric definition instead of guessing its bounds', () => {
