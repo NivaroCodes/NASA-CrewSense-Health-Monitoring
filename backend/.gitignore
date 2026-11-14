@@ -1,0 +1,5 @@
+# Local database and caches created by running the backend
+crewsense.db
+*.db
+.pytest_cache/
+__pycache__/

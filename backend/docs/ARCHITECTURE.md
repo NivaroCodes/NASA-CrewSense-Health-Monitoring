@@ -28,32 +28,36 @@ Not used: PostgreSQL, Redis, Celery, message brokers, ML models, microservices. 
 ```text
 backend/
 ├── app/
-│   ├── main.py                 # create_app(): wires routers, error handlers, DB init
+│   ├── main.py                    # create_app(): wiring, DB init, demo seeding, routers, error handlers
 │   ├── api/
-│   │   ├── dependencies.py     # DB session provider, shared query parameters
-│   │   └── routes/             # thin HTTP layer: parse, call service, map errors
+│   │   ├── dependencies.py        # DB session provider, reference time
+│   │   ├── errors.py              # maps domain/framework errors to the JSON error envelope
+│   │   └── routes/                # thin HTTP layer: health, metrics, dashboard, measurements, scans, alerts
 │   ├── core/
-│   │   ├── config.py           # Settings (env-driven: database URL, demo seeding)
-│   │   ├── database.py         # engine, SessionLocal, Base, init_db()
-│   │   └── monitoring_config.py# ALL rule thresholds, freshness windows, baseline policy
-│   ├── domain/                 # pure Python: no FastAPI, no SQLAlchemy imports
-│   │   ├── types.py            # frozen dataclasses: MeasurementInput, Observation, Baseline, RuleResult, ...
-│   │   ├── units.py            # canonical units and unit conversions (if any)
-│   │   └── metrics.py          # canonical MetricDefinition catalogue (seed source)
-│   ├── models/                 # SQLAlchemy ORM tables
-│   ├── schemas/                # Pydantic request/response models (the public contract)
-│   ├── repositories/           # persistence queries; convert ORM rows <-> domain types
+│   │   ├── config.py              # Settings from environment variables
+│   │   ├── database.py            # engine, session factory, Base, init_db, UTC conversion helpers
+│   │   └── monitoring_config.py   # ALL rule thresholds, windows, minimums, and the RULES catalogue
+│   ├── domain/                    # PURE Python: no FastAPI, no SQLAlchemy, no Pydantic
+│   │   ├── types.py               # enums and frozen dataclasses (Observation, Baseline, RuleFinding, Evaluation, ...)
+│   │   ├── errors.py              # DomainValidationError, NotFoundError, DuplicateMeasurementError
+│   │   ├── metrics.py             # canonical metric catalogue and wellbeing metric specs
+│   │   ├── validation.py          # value, unit, timestamp, and source checks
+│   │   ├── baseline.py            # personal baselines (observations, weekly exercise totals, wellbeing)
+│   │   ├── analysis.py            # evaluate(): freshness, baselines, rules, notices, requirements, statuses
+│   │   ├── alerts.py              # finding construction and template-based explanations
+│   │   ├── recommendations.py     # non-clinical next steps and the disclaimer text
+│   │   └── mission.py             # Mission Day calculation
+│   ├── models/                    # SQLAlchemy 2.x ORM tables
+│   ├── schemas/                   # Pydantic request/response models (the public contract)
+│   ├── repositories/              # SQL queries and ORM ↔ domain mapping
 │   ├── services/
-│   │   ├── validation_service.py   # value, unit, timestamp, source checks
-│   │   ├── measurement_service.py  # create/retrieve measurements (uses validation)
-│   │   ├── baseline_service.py     # personal baseline computation
-│   │   ├── analysis_service.py     # compatible comparisons + configured rules
-│   │   ├── alert_service.py        # alert objects with explanation and evidence
-│   │   ├── recommendation_service.py # non-clinical next-step guidance
-│   │   ├── scan_service.py         # orchestrates the full pipeline and persists the scan
-│   │   └── dashboard_service.py    # aggregates latest state for the dashboard
+│   │   ├── measurement_service.py # intake validation, duplicates, retrieval
+│   │   ├── scan_service.py        # full pipeline in one transaction; reads results back from storage
+│   │   ├── dashboard_service.py   # read-only aggregation at as_of
+│   │   ├── alert_service.py       # alert listing
+│   │   └── demo_service.py        # idempotent metric and Mission Day 087 seeding
 │   └── demo/
-│       └── mission_day_087.py  # deterministic synthetic dataset (data only, no logic)
+│       └── mission_day_087.py     # deterministic synthetic dataset (literal data only)
 ├── tests/
 ├── docs/
 ├── requirements.txt
@@ -62,7 +66,7 @@ backend/
 
 ### Why a `domain/` layer
 
-The assignment proposes `services/` as the home of the logic. The pure analytical code (validation, baseline, rules, alerts) is placed in `domain/` plus `services/` so that it has **no database or web dependency**. Benefits: the monitoring logic is unit-testable with plain pytest and runs without FastAPI or SQLAlchemy installed. Services that touch persistence (`measurement_service`, `scan_service`, `dashboard_service`) call into the pure functions. This split is the only deviation from the proposed structure and is justified by the offline/testing constraints above.
+The assignment proposes `services/` as the home of the logic. The pure analytical code (validation, baselines, rules, alerts, recommendations) lives in `domain/`, so it has **no database or web dependency**. The monitoring logic is unit-testable with plain pytest and runs without FastAPI or SQLAlchemy installed. The `services/` modules touch persistence and call into the pure functions. This is the only deviation from the proposed structure, and it is justified by the offline and testing constraints above.
 
 ## 4. Processing pipeline
 
@@ -150,7 +154,7 @@ Wellbeing (mood, stress, sleep, symptoms) is captured as self-report on the `hea
 | source_type | enum | `sensor_reading`, `manual_input`, `imported_examination`. (Wellbeing is `self_reported` on the scan.) |
 | source_detail | str nullable | Free text provenance, e.g. device name, lab report reference. |
 | is_synthetic | bool | True for demo data. |
-| validation_status | enum | `valid` or `plausibility_warning`. Values outside plausibility bounds are rejected, never stored. |
+| validation_status | enum | `valid` in v1. `plausibility_warning` is reserved. Values outside plausibility bounds are rejected, never stored. |
 | validation_notes | str nullable | Human-readable reason for a warning. |
 
 Index: `(astronaut_id, metric_key, observed_at)`.
@@ -278,9 +282,10 @@ Next steps are generic monitoring actions keyed by category and severity. They n
 - Seeded deterministically from `app/demo/mission_day_087.py`, which holds literal values only. No random generator, no current clock.
 - Synthetic astronaut: `DEMO-CS-001`, "Demo Astronaut A", mission start 2026-08-19, so Mission Day 087 is 2026-11-13.
 - `as_of` for the demo scan is fixed at `2026-11-13T07:30:00Z`.
-- Contents: about 14 days of heart rate and blood pressure history, exercise history for 5 weeks, 6 prior scans with wellbeing values, one imported lymphocyte examination older than its freshness window (so it shows as outdated), and a previous examination that allows the `IM-LYM-01` comparison.
-- Day 087 demonstrates: a heart rate change that fires `CV-HR-01`, a lower exercise week that fires `BM-EX-01`, lower self-reported sleep that fires `BH-SLP-01` (info only), a missing manual BP reading that yields `DQ-MISSING-01`, and one outdated value that yields `DQ-OUTDATED-01`.
-- The seeder is idempotent: it creates the demo astronaut only if absent.
+- Contents: 18 heart-rate readings (13 inside the 14-day baseline window, 4 older, 1 latest), 17 exercise entries over 5 weeks, one manual diastolic reading from 2026-11-07 (outdated on Day 087), no systolic readings, two imported lymphocyte examinations (2026-01-10 and 2026-05-20), and 6 prior scans with wellbeing values.
+- Day 087 demonstrates: a heart rate change that fires `CV-HR-01`, a lower exercise week that fires `BM-EX-01`, an examination change that fires `IM-LYM-01`, lower self-reported sleep that fires `BH-SLP-01` (info only), a missing systolic reading that yields `DQ-MISSING-01`, and an outdated diastolic reading that yields `DQ-OUTDATED-01`.
+- The seeder is idempotent: it creates the demo astronaut only if absent. Prior scans are stored as wellbeing history with `overall_status: not_evaluated`; their analysis is not replayed.
+- Every expected value in this section is asserted by `tests/domain/test_analysis.py`.
 
 ## 9. Key decisions
 
@@ -296,8 +301,18 @@ Next steps are generic monitoring actions keyed by category and severity. They n
 | D8 | Alert explanation text is generated from templates with the actual numbers. | Explainable, no free-form generated medical language. |
 | D9 | Pure `domain/` layer for analysis. | Testable without web or DB dependencies. |
 | D10 | Rule thresholds live in one config module. | Visible, reviewable and changeable without touching logic. |
+| D11 | The dashboard is read-only. It evaluates rules live at `as_of` and persists nothing. | Only a submitted scan creates a record. Repeated dashboard calls cannot change history. |
+| D12 | A scan response is read back from storage, not returned from memory. | `GET /scans/{id}` is guaranteed to match the response that was returned on submission. |
+| D13 | The judged value is excluded from its own baseline, and baseline windows are half-open. | A reading is never compared with a median that already contains it. Observations after `as_of` are ignored. |
+| D14 | A missing week of exercise is "no data", not zero. | Missing activity is never reported as inactivity. |
+| D15 | Measurement duplicates are rejected with 409. Within-request duplicates are rejected too. | Protects baselines from accidental double entry. |
 
-## 10. Known limitations
+## 10. Testing status
+
+- Executed: pure domain logic and Pydantic schemas (54 tests) with Python 3.13 and pytest 9.
+- Written but not executed in the authoring environment: HTTP contract tests (`tests/api`) and persistence tests (`tests/persistence`). FastAPI, SQLAlchemy and httpx were not installed, so these modules skip with an explicit reason. They must be run after `pip install -r requirements.txt`.
+
+## 11. Known limitations
 
 - Thresholds are prototype heuristics, not validated clinical criteria.
 - Single astronaut per demo; authentication is out of scope; the MVP trusts the `astronaut_id` it is given.
