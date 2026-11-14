@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Frontend local files
+node_modules/
+.env.*
+!.env.example
+*.tsbuildinfo
