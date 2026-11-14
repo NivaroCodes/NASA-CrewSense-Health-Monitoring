@@ -1,13 +1,19 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { useHealthOverview } from '../../hooks/useHealthOverview';
-import { useScanStore, type ScanStep } from '../../store/useScanStore';
+import { useScanStore, type ScanStep, type ScanState } from '../../store/useScanStore';
+import { finalizeScan, loadDraft, saveDraft } from '../../services/offline/scanRepo';
+import type { ScanDraftPayload } from '../../services/offline/db';
 import { canAdvance } from './validateStep';
 import { ScanProgress } from './ScanProgress';
 import { computeMissing } from './missing';
 import { StepAnalyse, StepOverview, StepSave } from './StepResult';
 import { StepManualEntry, StepMissing, StepReview, StepSensorFetch, StepStart, StepWellbeing } from './steps';
+
+function snapshot(s: ScanState): ScanDraftPayload {
+  return { step: s.step, manual: s.manual, mood: s.mood, stress: s.stress, symptoms: s.symptoms };
+}
 
 // One container, one session, one progress indicator (Spec, Section 6). The container never changes route
 // between steps, and Back never clears entered values.
@@ -17,6 +23,29 @@ export function ScanWizard() {
   const state = useScanStore();
   const readings = data?.readings ?? [];
   const missing = useMemo(() => computeMissing(readings), [readings]);
+
+  // Restore an unfinished scan after a reload (Spec, Section 6, Step 1).
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (useScanStore.getState().scanId) return;
+      const draft = await loadDraft();
+      if (cancelled || !draft) return;
+      const p = draft.payload;
+      useScanStore.setState({ scanId: draft.scanId, step: p.step, manual: p.manual, mood: p.mood, stress: p.stress, symptoms: p.symptoms });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Save the draft on every change so a reload resumes at the same step with values intact.
+  useEffect(() => {
+    return useScanStore.subscribe((s) => {
+      if (!s.scanId) return;
+      void saveDraft(s.scanId, snapshot(s));
+    });
+  }, []);
 
   // Step 4 is skipped when nothing is missing (Spec, Section 6, Step 3).
   const effectiveNext = (from: ScanStep): ScanStep => {
@@ -36,7 +65,10 @@ export function ScanWizard() {
   };
   const back = () => state.setStep(effectiveBack(state.step));
 
-  const finish = () => {
+  // Step 9: write the scan and queue it for sync in one transaction, then leave the scan (Spec, Section 6).
+  const finish = async () => {
+    const s = useScanStore.getState();
+    if (s.scanId) await finalizeScan(s.scanId, snapshot(s));
     state.reset();
     navigate('/dashboard');
   };

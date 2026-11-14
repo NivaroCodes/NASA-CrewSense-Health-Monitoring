@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useConnectivity } from '../../hooks/useConnectivity';
 import { useMet } from '../../hooks/useMet';
 import { useMissionStore } from '../../store/useMissionStore';
-import { Button } from '../ui/Button';
+import { useOfflineSync } from '../../hooks/useOfflineSync';
 
 // Fixed mission header (Spec, Section 4 and Section 5, Component A).
 // The clock lives in its own component so its once-per-second updates re-render only itself.
@@ -44,6 +44,7 @@ function ConnectionChip({ online }: { online: boolean }) {
 
 export function Header() {
   const { online } = useConnectivity();
+  const { pending } = useOfflineSync();
   const missionStart = useMissionStore((s) => s.missionStart);
   const missionTag = useMissionStore((s) => s.missionTag);
 
@@ -56,14 +57,16 @@ export function Header() {
       <div className="flex flex-wrap items-center gap-3">
         <MetClock start={missionStart} />
         <ConnectionChip online={online} />
+        {pending > 0 ? (
+          <span className="rounded-chip border border-accent-amber px-2 py-0.5 font-mono text-xs text-accent-amber">
+            {pending} queued
+          </span>
+        ) : null}
         {!online ? (
           <span className="rounded-chip bg-accent-amber/10 px-2 py-0.5 font-mono text-xs text-accent-amber">
             AUTONOMOUS MODE ENABLED
           </span>
         ) : null}
-        <Button variant="ghost" disabled disabledReason="Sync actions arrive with T-020">
-          Sync
-        </Button>
       </div>
     </header>
   );
