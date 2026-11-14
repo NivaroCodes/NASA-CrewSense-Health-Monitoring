@@ -8,6 +8,7 @@ Swagger UI: http://127.0.0.1:8000/docs
 from __future__ import annotations
 
 from fastapi import APIRouter, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import register_error_handlers
 from app.api.routes import alerts, dashboard, health, measurements, metrics, scans
@@ -36,6 +37,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "personal-baseline monitoring, and explainable alerts. Prototype heuristics "
             "only; not a medical device and not a diagnostic tool."
         ),
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
     )
     app.state.engine = engine
     app.state.session_factory = session_factory
