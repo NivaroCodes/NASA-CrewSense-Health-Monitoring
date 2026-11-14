@@ -1,11 +1,6 @@
-import { PlaceholderPanel } from '../../components/ui/EmptyState';
+import { ScanWizard } from './ScanWizard';
 
-// Nine-step container (Spec, Section 6). Built in T-015 to T-017.
+// Route /scan. The nine-step workflow runs inside one container (Spec, Section 6, T-015).
 export function ScanPage() {
-  return (
-    <PlaceholderPanel
-      title="Daily Health Scan"
-      note="The nine-step workflow runs in one container. Not yet implemented."
-    />
-  );
+  return <ScanWizard />;
 }
