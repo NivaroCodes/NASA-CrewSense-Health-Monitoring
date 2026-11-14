@@ -187,3 +187,23 @@ def test_legacy_sqlite_database_gains_idempotency_columns_and_keeps_rows(tmp_pat
         assert [tuple(r) for r in rows] == [(1, None)]
         index_names = {row[1] for row in conn.exec_driver_sql("PRAGMA index_list(health_scans)")}
         assert "ux_health_scans_astronaut_client_scan_id" in index_names
+
+
+def test_measurement_observed_after_reference_time_is_rejected_and_nothing_is_stored(client):
+    """observed_at later than as_of would be left out of the analysis, so the request is refused (422)."""
+    body = _body(new_measurements=[{**_bp_measurement(118), "observed_at": "2026-11-13T07:40:00Z"}])
+    before_scans = _scan_total(client)
+    before_measurements = _measurement_total(client)
+
+    response = client.post("/api/v1/scans", json=body)
+
+    assert response.status_code == 422
+    assert response.json()["error"]["details"][0]["field"] == "new_measurements[0].observed_at"
+    assert _scan_total(client) == before_scans
+    assert _measurement_total(client) == before_measurements
+
+
+def test_measurement_observed_exactly_at_reference_time_is_accepted(client):
+    body = _body(new_measurements=[{**_bp_measurement(119), "observed_at": AS_OF}])
+    response = client.post("/api/v1/scans", json=body)
+    assert response.status_code == 201

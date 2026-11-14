@@ -113,6 +113,19 @@ def _submit_new(session: Session, body: ScanCreate, *, now: datetime, fingerprin
             [FieldIssue("as_of", "Reference time is in the future beyond the allowed clock tolerance.")]
         )
 
+    # A measurement observed after the reference time would be stored but left out of this scan's analysis,
+    # because the analysis only sees data up to as_of. Reject it instead of storing it silently.
+    for index, item in enumerate(body.new_measurements):
+        if item.observed_at > as_of:
+            raise DomainValidationError(
+                [
+                    FieldIssue(
+                        f"new_measurements[{index}].observed_at",
+                        "Observation time is after the scan reference time (as_of).",
+                    )
+                ]
+            )
+
     # 1. Validate and stage any measurements that accompany the scan.
     new_inputs: list[MeasurementInput] = list(body.new_measurements)
     measurement_service.stage_measurements(
