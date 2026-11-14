@@ -133,7 +133,7 @@ export function StepManualEntry({ missing }: { missing: ManualKey[] }) {
           value={manual.glucose ?? ''}
           onChange={(v) => setManual('glucose', v)}
           rangeHint={`${GLUCOSE_RANGE.min} to ${GLUCOSE_RANGE.max} mg/dL`}
-          error={manual.glucose && !validateGlucose(manual.glucose).ok ? validateGlucose(manual.glucose).message : undefined}
+          error={errorIfTyped(validateGlucose(manual.glucose ?? ''), manual.glucose)}
         />
       ) : null}
       {show('temperature') ? (
@@ -144,7 +144,7 @@ export function StepManualEntry({ missing }: { missing: ManualKey[] }) {
           onChange={(v) => setManual('temperature', v)}
           rangeHint={`${TEMPERATURE_RANGE.min.toFixed(1)} to ${TEMPERATURE_RANGE.max.toFixed(1)} °C`}
           inputMode="decimal"
-          error={manual.temperature && !validateTemperature(manual.temperature).ok ? validateTemperature(manual.temperature).message : undefined}
+          error={errorIfTyped(validateTemperature(manual.temperature ?? ''), manual.temperature)}
         />
       ) : null}
       {show('sleep') ? (
@@ -155,7 +155,7 @@ export function StepManualEntry({ missing }: { missing: ManualKey[] }) {
           onChange={(v) => setManual('sleep', v)}
           rangeHint={`${SLEEP_RANGE.min.toFixed(1)} to ${SLEEP_RANGE.max.toFixed(1)} hours`}
           inputMode="decimal"
-          error={manual.sleep && !validateSleep(manual.sleep).ok ? validateSleep(manual.sleep).message : undefined}
+          error={errorIfTyped(validateSleep(manual.sleep ?? ''), manual.sleep)}
         />
       ) : null}
     </Card>
