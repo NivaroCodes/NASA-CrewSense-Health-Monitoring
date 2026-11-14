@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Skeleton } from '../../components/ui/Skeleton';
@@ -10,7 +11,7 @@ import { IndicatorCard } from './IndicatorCard';
 import { MonitoringBanner } from './MonitoringBanner';
 
 // Unified dashboard (Spec, Section 5). Blocks in vertical order:
-// monitoring status, scan entry, indicator grid, alerts. Trends and activity follow in T-015 and later.
+// monitoring status, scan entry, indicator grid, trends link, alerts. Activity log is not yet built.
 export function DashboardPage() {
   const { data, isPending, isError, refetch, dataUpdatedAt } = useHealthOverview();
   // Captured per data load so relative times stay stable between renders.
@@ -61,6 +62,12 @@ export function DashboardPage() {
                 <IndicatorCard key={reading.id} reading={reading} nowMs={nowForRender} />
               ))}
             </div>
+          </section>
+
+          <section aria-label="Trends">
+            <Link to="/history" className="text-sm text-accent-cyan underline">
+              View 30-day history and trends
+            </Link>
           </section>
 
           <section aria-label="Active alerts">
