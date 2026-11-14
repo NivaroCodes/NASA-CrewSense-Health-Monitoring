@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useBackendHealth } from '../../hooks/useBackendHealth';
 import { useConnectivity } from '../../hooks/useConnectivity';
 import { useDashboard } from '../../hooks/useDashboard';
@@ -53,10 +54,14 @@ export function Header() {
       <div className="flex flex-wrap items-center gap-3">
         <ApiChip />
         {pending > 0 ? (
-          <span className="rounded-chip border border-accent-amber px-2 py-0.5 font-mono text-xs text-accent-amber">{pending} queued</span>
+          <Link to="/sync" className="rounded-chip border border-accent-amber px-2 py-0.5 font-mono text-xs text-accent-amber">
+            {pending} queued
+          </Link>
         ) : null}
         {rejected > 0 ? (
-          <span className="rounded-chip border border-accent-crimson px-2 py-0.5 font-mono text-xs text-accent-crimson">{rejected} rejected</span>
+          <Link to="/sync" className="rounded-chip border border-accent-crimson px-2 py-0.5 font-mono text-xs text-accent-crimson">
+            {rejected} rejected
+          </Link>
         ) : null}
         {!online ? (
           <span className="rounded-chip bg-accent-amber/10 px-2 py-0.5 font-mono text-xs text-accent-amber">DEVICE OFFLINE</span>
