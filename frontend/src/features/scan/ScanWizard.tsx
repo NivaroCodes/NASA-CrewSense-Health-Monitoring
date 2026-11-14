@@ -34,7 +34,9 @@ export function ScanWizard({ dashboard, fromCache, metricsByKey }: Props) {
   const store = useScanStore();
   const requirements = dashboard.scan_requirements;
   const hasMeasurements = requirements.length > 0;
-  const defaultObservedAt = toLocalInputValue(dashboard.as_of);
+  // Default observation time is the moment this scan screen opened, never the dashboard's cached as_of.
+  const [openedAt] = useState(() => new Date().toISOString());
+  const defaultObservedAt = toLocalInputValue(openedAt);
 
   const [ready, setReady] = useState(false);
   const [restored, setRestored] = useState(false);
@@ -130,7 +132,8 @@ export function ScanWizard({ dashboard, fromCache, metricsByKey }: Props) {
     try {
       body = buildScanBody({
         astronautId: dashboard.astronaut.id,
-        asOf: dashboard.as_of,
+        // Reference time is the real submission time, so a cached dashboard cannot stamp a new scan with old time.
+        asOf: new Date().toISOString(),
         draft,
         requirements,
         metricsByKey,

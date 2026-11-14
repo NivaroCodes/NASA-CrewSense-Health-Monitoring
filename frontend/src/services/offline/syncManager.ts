@@ -17,10 +17,11 @@ export async function queueCounts(): Promise<{ pending: number; rejected: number
   return { pending, rejected };
 }
 
-let inFlight: Promise<void> | null = null;
+let inFlight: Promise<number> | null = null;
 
-// Sends every due item. Calls made while a flush is running share that flush.
-export function flushQueue(now: number = Date.now()): Promise<void> {
+// Sends every due item and resolves with how many were accepted by the server.
+// Calls made while a flush is running share that flush.
+export function flushQueue(now: number = Date.now()): Promise<number> {
   if (!inFlight) {
     inFlight = runFlush(now).finally(() => {
       inFlight = null;
@@ -29,7 +30,8 @@ export function flushQueue(now: number = Date.now()): Promise<void> {
   return inFlight;
 }
 
-async function runFlush(now: number): Promise<void> {
+async function runFlush(now: number): Promise<number> {
+  let sent = 0;
   // An item left as SENDING by an interrupted flush is retried, not stuck forever.
   await db.sync_queue.where('status').equals('SENDING').modify({ status: 'FAILED', nextAttemptAt: 0 });
 
@@ -56,6 +58,7 @@ async function runFlush(now: number): Promise<void> {
         await db.sync_queue.update(id, { status: 'SENT', lastError: undefined });
         await db.scans.update(item.scanId, { status: 'synced' });
       });
+      sent += 1;
     } catch (err) {
       if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
         const reasons = err.details.map((d) => `${d.field}: ${d.message}`).join('; ');
@@ -74,4 +77,5 @@ async function runFlush(now: number): Promise<void> {
       }
     }
   }
+  return sent;
 }
