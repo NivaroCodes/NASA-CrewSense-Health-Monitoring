@@ -1,44 +1,65 @@
-import { Card } from '../../components/ui/Card';
-import { Skeleton } from '../../components/ui/Skeleton';
-import { SeverityChip, type AlertStatus } from '../../components/ui/SeverityChip';
-import { PlaceholderPanel } from '../../components/ui/EmptyState';
-import { useHealthOverview } from '../../hooks/useHealthOverview';
-import { AlertsWidget } from '../dashboard/AlertsWidget';
+import { useState } from 'react';
+import { ErrorPanel } from '../../components/ui/ErrorPanel';
+import { PageSkeleton } from '../../components/ui/Loading';
+import { AlertList } from '../dashboard/AlertList';
+import { useAlerts } from '../../hooks/useLists';
+import { CATEGORY_LABEL } from '../../utils/labels';
 
-const STATUSES: AlertStatus[] = ['Urgent', 'Attention', 'Insufficient Data', 'Normal'];
-
-// Alert triage (Spec, Section 8). Severity and wording come from the backend; this page only groups and counts them.
+// Saved alerts from GET /alerts, filtered by the backend's own enumerations.
 export function AlertsPage() {
-  const { data, isPending, isError, dataUpdatedAt } = useHealthOverview();
-
-  if (isPending) return <Skeleton className="h-48 w-full" />;
-  if (isError) {
-    return <PlaceholderPanel title="Alerts unavailable" note="Could not load alerts. Try again from the dashboard." />;
-  }
-
-  const countFor = (status: AlertStatus) => data.alerts.filter((a) => a.status === status).length;
+  const [severity, setSeverity] = useState<string>('');
+  const [category, setCategory] = useState<string>('');
+  const query = useAlerts({
+    severity: severity || undefined,
+    category: category || undefined,
+    limit: 100,
+  });
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-sans font-semibold">Alerts</h1>
         <p className="text-sm text-text-secondary">
-          Ordered by backend severity. Each alert shows the backend text as received.
+          Saved from Daily Health Scans. Dashboard live checks are not stored and do not appear here.
         </p>
       </div>
 
-      <Card>
-        <ul className="flex flex-wrap gap-3" aria-label="Alert counts by status">
-          {STATUSES.map((status) => (
-            <li key={status} className="flex items-center gap-2 text-sm">
-              <SeverityChip status={status} />
-              <span className="font-mono">{countFor(status)}</span>
-            </li>
-          ))}
-        </ul>
-      </Card>
+      <div className="flex flex-wrap gap-4 text-sm">
+        <label className="flex items-center gap-2">
+          <span className="text-text-secondary">Severity</span>
+          <select value={severity} onChange={(e) => setSeverity(e.target.value)} className="rounded-chip border border-border-subtle bg-bg-surface px-2 py-1">
+            <option value="">All</option>
+            <option value="attention">Attention</option>
+            <option value="info">Info</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2">
+          <span className="text-text-secondary">Category</span>
+          <select value={category} onChange={(e) => setCategory(e.target.value)} className="rounded-chip border border-border-subtle bg-bg-surface px-2 py-1">
+            <option value="">All</option>
+            {Object.entries(CATEGORY_LABEL)
+              .filter(([key]) => ['cardiovascular', 'bone_muscle', 'immune', 'behavioral'].includes(key))
+              .map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+          </select>
+        </label>
+      </div>
 
-      <AlertsWidget alerts={data.alerts} nowMs={dataUpdatedAt || Date.now()} />
+      {query.isPending ? (
+        <PageSkeleton />
+      ) : query.isError ? (
+        <ErrorPanel title="Could not load alerts." error={query.error} onRetry={() => void query.refetch()} />
+      ) : (
+        <>
+          <p className="text-xs text-text-secondary">
+            Showing {query.data.items.length} of {query.data.total} saved alerts.
+          </p>
+          <AlertList alerts={query.data.items} emptyText="No saved alerts match these filters." />
+        </>
+      )}
     </div>
   );
 }

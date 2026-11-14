@@ -1,24 +1,66 @@
-# CrewSense — Frontend
+# CrewSense frontend
 
-React, TypeScript, Vite and Tailwind CSS. Specification: `CrewSense — Full Frontend Development Specification`.
+React, TypeScript and Vite. Connects to the FastAPI backend in the `backend` branch.
 
-## Status
+> Prototype decision-support tool. Not a medical device. Alerts describe changes from the astronaut's own history.
 
-Scaffold only (task T-008). The app shell, five routes, design tokens and one provenance badge are in place. No feature is implemented yet. The build was written without being run in the authoring environment, so the first `npm install` may surface errors to fix.
+## Run the backend first
 
-## Run
+The backend lives on the `backend` branch. From a checkout of that branch, in its `backend/` folder:
+
+```bash
+python -m venv .venv
+. .venv/bin/activate          # Windows PowerShell: .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn app.main:create_app --factory --reload
+```
+
+- API base: `http://127.0.0.1:8000/api/v1`
+- Swagger UI: `http://127.0.0.1:8000/docs`
+
+The backend seeds the synthetic Mission Day 087 demo on first start. Every seeded value is labelled `is_synthetic`.
+
+## Run the frontend
 
 ```bash
 cd frontend
+cp .env.example .env.local    # Windows: copy .env.example .env.local
 npm install
-npm run dev        # http://localhost:5173
-npm run typecheck
-npm run build
-npm test
+npm run dev                   # http://localhost:5173
 ```
 
-`npm install` creates `package-lock.json`, which is intentionally committed once generated.
+On Windows PowerShell, if `npm` is blocked by execution policy, use `npm.cmd` instead.
 
-## Structure
+The backend allows CORS from `http://localhost:5173` and `http://127.0.0.1:5173` only. Use one of those addresses.
 
-See Section 12 of the specification. Feature code lives in `src/features`, design-system primitives in `src/components/ui`, and tokens in `tailwind.config.js`.
+## Configuration
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `VITE_API_BASE_URL` | `http://127.0.0.1:8000/api/v1` | Backend base URL. Read only in `src/config.ts`. |
+| `VITE_AS_OF` | empty (server time) | Reference time for the dashboard and scans. The contract's demo value is `2026-11-13T07:30:00Z`. |
+
+## Checks
+
+```bash
+npm run typecheck
+npm test
+npm run build
+```
+
+## How the app talks to the backend
+
+- `src/services/api/client.ts` is the only HTTP code. It parses the backend's error envelope into `ApiError` with field details. A request with no answer is status `0` and is treated as a network failure.
+- `src/services/api/endpoints.ts` has one typed function per contract endpoint. `src/types/api.ts` mirrors the Pydantic schemas.
+- Indicators, units, plausibility bounds and descriptions come from `GET /metrics` and `GET /dashboard`. None are hard-coded.
+- The dashboard and metric catalogue are cached in IndexedDB. When the server cannot be reached, the cached copy is shown and labelled as cached.
+- A Daily Health Scan is one `POST /scans` containing wellbeing and the requested manual measurements. The server stores all of it or nothing.
+- If a submission gets no answer from the server, the exact request body is queued on the device and sent later with backoff (2 s, doubling, capped at 60 s). Server rejections (4xx) are not retried and are shown as rejected.
+- Drafts are saved on every change, so a reload resumes the same scan.
+
+## Known limitations
+
+- `POST /scans` is not idempotent on the server. If a request reached the server but its response was lost, a queued retry stores a second scan. An idempotency key needs a backend contract change.
+- Trends use stored measurements only. The backend exposes no baseline band, so the chart shows a single reference line.
+- Blood pressure, activity and lymphocyte count are the only backend indicators in the MVP. Glucose, temperature, sleep and mood are not backend metrics; sleep and mood are self-reported on the scan.
+- The header reads the backend health check every 15 seconds.

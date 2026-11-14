@@ -1,72 +1,66 @@
-import { db, type ScanDraftPayload } from '../offline/db';
-import type { HealthOverview, IndicatorId, Reading } from '../../types/telemetry';
-import type { TrendSeries } from '../../types/history';
-import { DEMO_OVERVIEW, DEMO_TRENDS } from './fixtures';
+import type {
+  Dashboard,
+  HealthOut,
+  MeasurementCreate,
+  MeasurementOut,
+  MetricOut,
+  Page,
+  ScanAlert,
+  ScanCreate,
+  ScanListItem,
+  ScanOut,
+} from '../../types/api';
+import { apiRequest } from './client';
 
-// Single entry point for backend calls. Currently served by demonstration stand-ins.
-// Replace bodies when the contracts are agreed (T-021). Paths are TO BE AGREED WITH BACKEND OWNER.
-export const IS_DEMO_DATA = true;
+// Typed wrappers for the backend endpoints in the API contract. Paths are relative to API_BASE_URL.
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+export const getHealth = () => apiRequest<HealthOut>('/health');
 
-// Reads the overview. Online: demonstration data, then cached. Offline: cached data only.
-export async function getHealthOverview(): Promise<HealthOverview> {
-  if (!navigator.onLine) {
-    const cached = await readCachedOverview();
-    if (cached) return cached;
-    throw new Error('No connection and no cached data yet.');
-  }
-  await delay(150);
-  const overview = structuredClone(DEMO_OVERVIEW);
-  await cacheOverview(overview);
-  return overview;
-}
+export const getMetrics = () => apiRequest<Page<MetricOut>>('/metrics');
 
-async function cacheOverview(overview: HealthOverview): Promise<void> {
-  const now = new Date().toISOString();
-  await db.transaction('rw', db.telemetry_cache, db.alerts, async () => {
-    await db.telemetry_cache.bulkPut(
-      overview.readings.map((reading) => ({ id: reading.id, reading, cachedAt: now })),
-    );
-    await db.alerts.clear();
-    await db.alerts.bulkPut(overview.alerts.map((alert) => ({ id: alert.id, alert, cachedAt: now })));
+export const getDashboard = (params: { astronautId?: number; asOf?: string }) =>
+  apiRequest<Dashboard>('/dashboard', {
+    query: { astronaut_id: params.astronautId, as_of: params.asOf },
   });
+
+export interface MeasurementQuery {
+  astronautId?: number;
+  metricKey?: string;
+  sourceType?: string;
+  limit?: number;
+  offset?: number;
 }
 
-// Rebuilds the overview from cache. Counts are derived from cached readings; no value is invented.
-async function readCachedOverview(): Promise<HealthOverview | null> {
-  const rows = await db.telemetry_cache.toArray();
-  if (rows.length === 0) return null;
-  const readings: Reading[] = rows.map((r) => r.reading);
-  const alerts = (await db.alerts.toArray()).map((a) => a.alert);
-  return {
-    monitoring: {
-      activeSources: readings.filter((r) => r.value !== null).length,
-      totalSources: readings.length,
-      needingAttention: readings.filter((r) => r.status === 'Attention' || r.status === 'Urgent').length,
-      missing: readings.filter((r) => r.value === null).length,
+export const listMeasurements = (q: MeasurementQuery) =>
+  apiRequest<Page<MeasurementOut>>('/measurements', {
+    query: {
+      astronaut_id: q.astronautId,
+      metric_key: q.metricKey,
+      source_type: q.sourceType,
+      limit: q.limit,
+      offset: q.offset,
     },
-    readings,
-    alerts,
-    lastScanAt: null,
-  };
-}
+  });
 
-// Reads one 30-day trend window. DEMONSTRATION STAND-IN. Trends are not cached offline yet, so they need a connection.
-// Returns null when the backend has no history for the indicator (for example blood pressure in the demo set).
-// Replace with GET /api/v1/telemetry/{id}/history when agreed (T-021).
-export async function getTrendSeries(id: IndicatorId): Promise<TrendSeries | null> {
-  if (!navigator.onLine) throw new Error('Trend history needs a connection.');
-  await delay(120);
-  const series = DEMO_TRENDS[id];
-  return series ? structuredClone(series) : null;
-}
+export const createMeasurement = (body: MeasurementCreate) =>
+  apiRequest<MeasurementOut>('/measurements', { method: 'POST', body });
 
-// Submits one finished scan. DEMONSTRATION STAND-IN: accepts the payload locally and reports analysis as pending.
-// It does not compute any health result. Replace with POST /api/v1/scan/submit when agreed (T-021).
-export async function submitScan(scanId: string, payload: ScanDraftPayload): Promise<{ status: 'received'; scanId: string }> {
-  if (!navigator.onLine) throw new Error('Offline');
-  await delay(400);
-  void payload;
-  return { status: 'received', scanId };
-}
+export const submitScan = (body: ScanCreate) => apiRequest<ScanOut>('/scans', { method: 'POST', body });
+
+export const getScan = (scanId: number) => apiRequest<ScanOut>(`/scans/${scanId}`);
+
+export const listScans = (q: { astronautId?: number; limit?: number; offset?: number }) =>
+  apiRequest<Page<ScanListItem>>('/scans', {
+    query: { astronaut_id: q.astronautId, limit: q.limit, offset: q.offset },
+  });
+
+export const listAlerts = (q: { astronautId?: number; scanId?: number; category?: string; severity?: string; limit?: number }) =>
+  apiRequest<Page<ScanAlert>>('/alerts', {
+    query: {
+      astronaut_id: q.astronautId,
+      scan_id: q.scanId,
+      category: q.category,
+      severity: q.severity,
+      limit: q.limit,
+    },
+  });

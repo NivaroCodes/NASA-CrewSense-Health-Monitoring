@@ -1,62 +1,51 @@
 import Dexie, { type Table } from 'dexie';
-import type { ManualKey, ScanStep } from '../../store/useScanStore';
-import type { AlertItem, Reading } from '../../types/telemetry';
+import type { Dashboard, MetricOut, Page, ScanCreate } from '../../types/api';
+import type { ScanDraft } from '../../types/scanDraft';
 
-// Local tables from Spec, Section 10: telemetry_cache, scans, alerts, sync_queue.
-// This is the only module that opens IndexedDB (Spec, Section 12).
+// Local IndexedDB store. This is the only module that opens the database.
+// The name is new (v2) because the schema changed and Dexie cannot change a primary key in place.
 
-export interface CachedReading {
-  id: string; // indicator id
-  reading: Reading;
+export type CacheKey = 'dashboard' | 'metrics';
+export type CachePayload = Dashboard | Page<MetricOut>;
+
+export interface CacheRow {
+  key: CacheKey;
+  payload: CachePayload;
   cachedAt: string;
 }
 
 export interface StoredScan {
   scanId: string;
-  // draft: in progress and restorable. pending: finished, awaiting sync. synced: accepted by the server.
+  // draft: in progress and restorable. pending: queued for sending. synced: accepted by the server.
   status: 'draft' | 'pending' | 'synced';
-  payload: ScanDraftPayload;
+  draft?: ScanDraft;
+  // Exact body that will be POSTed, built once when the scan is finished.
+  body?: ScanCreate;
   updatedAt: string;
 }
 
-export interface ScanDraftPayload {
-  step: ScanStep;
-  manual: Partial<Record<ManualKey, string>>;
-  mood: number | null;
-  stress: number | null;
-  symptoms: string[];
-}
-
-export interface StoredAlert {
-  id: string;
-  alert: AlertItem;
-  cachedAt: string;
-}
-
-export type SyncStatus = 'PENDING' | 'SENDING' | 'SENT' | 'FAILED';
+export type SyncStatus = 'PENDING' | 'SENDING' | 'SENT' | 'FAILED' | 'REJECTED';
 
 export interface SyncItem {
   id?: number;
   scanId: string;
   status: SyncStatus;
   attempts: number;
-  nextAttemptAt: number; // epoch ms; 0 means immediately
+  nextAttemptAt: number; // epoch ms; 0 means due immediately
   lastError?: string;
   createdAt: string;
 }
 
 class CrewSenseDB extends Dexie {
-  telemetry_cache!: Table<CachedReading, string>;
+  cache!: Table<CacheRow, CacheKey>;
   scans!: Table<StoredScan, string>;
-  alerts!: Table<StoredAlert, string>;
   sync_queue!: Table<SyncItem, number>;
 
   constructor() {
-    super('crewsense');
+    super('crewsense_v2');
     this.version(1).stores({
-      telemetry_cache: 'id',
+      cache: 'key',
       scans: 'scanId, status',
-      alerts: 'id',
       sync_queue: '++id, status, scanId',
     });
   }

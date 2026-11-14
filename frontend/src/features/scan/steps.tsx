@@ -1,249 +1,260 @@
 import { Card } from '../../components/ui/Card';
 import { NumericInput } from '../../components/ui/NumericInput';
-import { ProvenanceBadge } from '../../components/ui/ProvenanceBadge';
-import { useScanStore, type ManualKey } from '../../store/useScanStore';
-import type { Reading } from '../../types/telemetry';
-import {
-  type ValidationResult,
-  BP_DIASTOLIC_RANGE,
-  BP_SYSTOLIC_RANGE,
-  GLUCOSE_RANGE,
-  HEART_RATE_RANGE,
-  SLEEP_RANGE,
-  TEMPERATURE_RANGE,
-  validateBloodPressure,
-  validateGlucose,
-  validateHeartRate,
-  validateSleep,
-  validateTemperature,
-} from '../../utils/validation';
+import { StatusChip } from '../../components/ui/StatusChip';
+import type { Dashboard, MetricOut, ScanRequirement, Symptom } from '../../types/api';
+import type { ManualEntry, ScanDraft, WellbeingDraft } from '../../types/scanDraft';
+import { formatValue } from '../../utils/format';
+import { SOURCE_LABEL, SYMPTOM_OPTIONS } from '../../utils/labels';
+import { NOTES_MAX, type FieldErrors } from './validateStep';
 
-// Step 1: confirmation before the scan begins.
-export function StepStart({ onBegin }: { onBegin: () => void }) {
+// Step 1: what the backend needs today. Nothing is entered here.
+export function StepOverview({ dashboard, requirements }: { dashboard: Dashboard; requirements: ScanRequirement[] }) {
   return (
-    <Card>
-      <h2 className="text-lg font-semibold">Start Daily Health Scan</h2>
-      <p className="mt-2 text-sm text-text-secondary">
-        CrewSense will retrieve available readings, ask only for what is missing, and ask two short wellbeing questions.
+    <Card className="space-y-3">
+      <h2 className="text-sm font-semibold">Today's scan</h2>
+      {requirements.length === 0 ? (
+        <p className="text-sm">No measurements are needed today. Only the wellbeing assessment is required.</p>
+      ) : (
+        <>
+          <p className="text-sm text-text-secondary">These values are missing or outdated. Enter them in the next step.</p>
+          <ul className="space-y-1 text-sm">
+            {requirements.map((r) => (
+              <li key={r.metric_key} className="flex items-center gap-2">
+                <span>{r.display_name}</span>
+                <StatusChip value={r.reason} />
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <p className="text-xs text-text-secondary">
+        {dashboard.wellbeing.required_today
+          ? 'The wellbeing assessment is required for this mission day.'
+          : 'A wellbeing assessment has already been recorded for this mission day. You can still submit a new one.'}
       </p>
-      <button type="button" onClick={onBegin} className="mt-4 rounded-chip bg-accent-cyan px-4 py-2 text-sm font-medium text-bg-base">
-        Begin
-      </button>
     </Card>
   );
 }
 
-// Step 2: what each source returned. Unanswered sources are stated, never filled in.
-export function StepSensorFetch({ readings }: { readings: Reading[] }) {
+// Step 2: manual values the backend asked for. Each one carries its own observation time and source type.
+export function StepMeasurements({
+  requirements,
+  metricsByKey,
+  entries,
+  errors,
+  onEntry,
+  defaultObservedAt,
+}: {
+  requirements: ScanRequirement[];
+  metricsByKey: Map<string, MetricOut>;
+  entries: Record<string, ManualEntry>;
+  errors: FieldErrors;
+  onEntry: (metricKey: string, patch: Partial<ManualEntry>) => void;
+  defaultObservedAt: string;
+}) {
   return (
-    <Card>
-      <h2 className="text-lg font-semibold">Retrieved readings</h2>
-      <ul className="mt-3 divide-y divide-border-subtle">
-        {readings.map((r) => (
-          <li key={r.id} className="flex items-center justify-between py-2 text-sm">
-            <span>{r.name}</span>
-            <span className="flex items-center gap-2">
-              {r.value !== null ? (
-                <>
-                  <span className="font-mono">
-                    {r.value} {r.unit}
+    <section aria-label="Measurements" className="space-y-4">
+      <p className="text-sm text-text-secondary">
+        Each value is stored with its observation time and source. Ranges are plausibility limits from the metric catalogue, not clinical ranges.
+      </p>
+      {requirements.map((req) => {
+        const metric = metricsByKey.get(req.metric_key);
+        const entry = entries[req.metric_key];
+        const observedId = `observed-${req.metric_key}`;
+        const sourceId = `source-${req.metric_key}`;
+        return (
+          <Card key={req.metric_key} className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold">{req.display_name}</h3>
+              <StatusChip value={req.reason} />
+            </div>
+            {metric ? <p className="text-xs text-text-secondary">{metric.description}</p> : null}
+            <NumericInput
+              label="Value"
+              unit={metric?.canonical_unit ?? req.unit}
+              value={entry?.value ?? ''}
+              onChange={(value) => onEntry(req.metric_key, { value })}
+              rangeHint={metric ? `${metric.plausible_min} to ${metric.plausible_max} ${metric.canonical_unit}` : 'unavailable offline'}
+              error={errors[req.metric_key]}
+              inputMode="decimal"
+            />
+            <div className="flex flex-wrap gap-4">
+              <label htmlFor={observedId} className="space-y-1 text-sm">
+                <span className="block text-text-secondary">Observed at</span>
+                <input
+                  id={observedId}
+                  type="datetime-local"
+                  value={entry?.observedAt || defaultObservedAt}
+                  onChange={(e) => onEntry(req.metric_key, { observedAt: e.target.value })}
+                  className="rounded-chip border border-border-subtle bg-bg-surface px-2 py-1 font-mono text-sm"
+                />
+                {errors[`${req.metric_key}:observedAt`] ? (
+                  <span role="alert" className="block text-xs text-accent-crimson">
+                    {errors[`${req.metric_key}:observedAt`]}
                   </span>
-                  <ProvenanceBadge source={r.provenance} />
-                </>
-              ) : (
-                <span className="font-mono text-text-secondary">Not available</span>
-              )}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </Card>
+                ) : null}
+              </label>
+              <label htmlFor={sourceId} className="space-y-1 text-sm">
+                <span className="block text-text-secondary">Source</span>
+                <select
+                  id={sourceId}
+                  value={entry?.sourceType ?? req.allowed_source_types[0]}
+                  onChange={(e) => onEntry(req.metric_key, { sourceType: e.target.value as ManualEntry['sourceType'] })}
+                  className="rounded-chip border border-border-subtle bg-bg-surface px-2 py-1 text-sm"
+                >
+                  {req.allowed_source_types.map((s) => (
+                    <option key={s} value={s}>
+                      {SOURCE_LABEL[s] ?? s}
+                    </option>
+                  ))}
+                </select>
+                {errors[`${req.metric_key}:sourceType`] ? (
+                  <span role="alert" className="block text-xs text-accent-crimson">
+                    {errors[`${req.metric_key}:sourceType`]}
+                  </span>
+                ) : null}
+              </label>
+            </div>
+          </Card>
+        );
+      })}
+    </section>
   );
 }
 
-// Step 3: the list of missing measurements, derived from step 2.
-export function StepMissing({ missing }: { missing: ManualKey[] }) {
-  if (missing.length === 0) {
-    return (
-      <Card>
-        <h2 className="text-lg font-semibold">Nothing missing</h2>
-        <p className="mt-2 text-sm text-text-secondary">All measurements were retrieved. Manual entry is skipped.</p>
-      </Card>
-    );
-  }
+// Step 3: wellbeing is self-reported, so it is labelled as such on the form and on the result.
+export function StepWellbeing({
+  wellbeing,
+  errors,
+  onChange,
+  onToggleSymptom,
+}: {
+  wellbeing: WellbeingDraft;
+  errors: FieldErrors;
+  onChange: (patch: Partial<WellbeingDraft>) => void;
+  onToggleSymptom: (symptom: Symptom) => void;
+}) {
   return (
-    <Card>
-      <h2 className="text-lg font-semibold">Missing measurements</h2>
-      <p className="mt-2 text-sm text-text-secondary">{missing.length} field(s) need manual entry.</p>
-    </Card>
-  );
-}
+    <section aria-label="Wellbeing" className="space-y-5">
+      <p className="text-sm text-text-secondary">Self-reported. Answer as you feel today; these answers are not sensor measurements.</p>
 
-// Show an error only once the field has input, so an untouched field is not flagged.
-function errorIfTyped(result: ValidationResult, raw: string | undefined): string | undefined {
-  if (!raw || result.ok) return undefined;
-  return result.message;
-}
-
-// Step 4: manual entry for missing fields only, tagged MANUAL on save. Technical plausibility guards only.
-export function StepManualEntry({ missing }: { missing: ManualKey[] }) {
-  const manual = useScanStore((s) => s.manual);
-  const setManual = useScanStore((s) => s.setManual);
-  const show = (key: ManualKey) => missing.includes(key);
-
-  const bp = validateBloodPressure(manual.systolic ?? '', manual.diastolic ?? '');
-
-  return (
-    <Card className="space-y-6">
-      <h2 className="text-lg font-semibold">Enter missing measurements</h2>
-      {show('heartRate') ? (
-        <NumericInput
-          label="Heart rate"
-          unit="bpm"
-          value={manual.heartRate ?? ''}
-          onChange={(v) => setManual('heartRate', v)}
-          rangeHint={`${HEART_RATE_RANGE.min} to ${HEART_RATE_RANGE.max} bpm`}
-          error={errorIfTyped(validateHeartRate(manual.heartRate ?? ''), manual.heartRate)}
-        />
-      ) : null}
-      {show('systolic') || show('diastolic') ? (
-        <div className="flex flex-wrap gap-6">
-          <NumericInput
-            label="Systolic"
-            unit="mmHg"
-            value={manual.systolic ?? ''}
-            onChange={(v) => setManual('systolic', v)}
-            rangeHint={`${BP_SYSTOLIC_RANGE.min} to ${BP_SYSTOLIC_RANGE.max} mmHg`}
-            error={!bp.systolic.ok && manual.systolic ? bp.systolic.message : bp.pair.ok ? undefined : bp.pair.message}
-          />
-          <NumericInput
-            label="Diastolic"
-            unit="mmHg"
-            value={manual.diastolic ?? ''}
-            onChange={(v) => setManual('diastolic', v)}
-            rangeHint={`${BP_DIASTOLIC_RANGE.min} to ${BP_DIASTOLIC_RANGE.max} mmHg`}
-            error={!bp.diastolic.ok && manual.diastolic ? bp.diastolic.message : undefined}
-          />
-        </div>
-      ) : null}
-      {show('glucose') ? (
-        <NumericInput
-          label="Blood glucose"
-          unit="mg/dL"
-          value={manual.glucose ?? ''}
-          onChange={(v) => setManual('glucose', v)}
-          rangeHint={`${GLUCOSE_RANGE.min} to ${GLUCOSE_RANGE.max} mg/dL`}
-          error={errorIfTyped(validateGlucose(manual.glucose ?? ''), manual.glucose)}
-        />
-      ) : null}
-      {show('temperature') ? (
-        <NumericInput
-          label="Body temperature"
-          unit="°C"
-          value={manual.temperature ?? ''}
-          onChange={(v) => setManual('temperature', v)}
-          rangeHint={`${TEMPERATURE_RANGE.min.toFixed(1)} to ${TEMPERATURE_RANGE.max.toFixed(1)} °C`}
-          inputMode="decimal"
-          error={errorIfTyped(validateTemperature(manual.temperature ?? ''), manual.temperature)}
-        />
-      ) : null}
-      {show('sleep') ? (
-        <NumericInput
-          label="Sleep duration"
-          unit="hours"
-          value={manual.sleep ?? ''}
-          onChange={(v) => setManual('sleep', v)}
-          rangeHint={`${SLEEP_RANGE.min.toFixed(1)} to ${SLEEP_RANGE.max.toFixed(1)} hours`}
-          inputMode="decimal"
-          error={errorIfTyped(validateSleep(manual.sleep ?? ''), manual.sleep)}
-        />
-      ) : null}
-    </Card>
-  );
-}
-
-// Step 5: subjective self-report. Stored with provenance SELF-REPORT.
-const SYMPTOMS = ['Headache', 'Fatigue', 'Nausea', 'Dizziness', 'Sleep disruption'];
-
-export function StepWellbeing() {
-  const mood = useScanStore((s) => s.mood);
-  const stress = useScanStore((s) => s.stress);
-  const symptoms = useScanStore((s) => s.symptoms);
-  const setMood = useScanStore((s) => s.setMood);
-  const setStress = useScanStore((s) => s.setStress);
-  const toggle = useScanStore((s) => s.toggleSymptom);
-
-  const scale = (label: string, value: number | null, onPick: (n: number) => void) => (
-    <fieldset className="space-y-2">
-      <legend className="text-sm text-text-secondary">{label} (1 to 5)</legend>
-      <div className="flex gap-2" role="radiogroup" aria-label={label}>
-        {[1, 2, 3, 4, 5].map((n) => (
-          <button
-            key={n}
-            type="button"
-            role="radio"
-            aria-checked={value === n}
-            onClick={() => onPick(n)}
-            className={`h-10 w-10 rounded-chip border font-mono ${
-              value === n ? 'border-accent-cyan bg-accent-cyan text-bg-base' : 'border-border-subtle text-text-primary'
-            }`}
-          >
-            {n}
-          </button>
-        ))}
-      </div>
-    </fieldset>
-  );
-
-  return (
-    <Card className="space-y-6">
-      <h2 className="text-lg font-semibold">Wellbeing</h2>
-      {scale('Mood', mood, setMood)}
-      {scale('Stress', stress, setStress)}
       <fieldset className="space-y-2">
-        <legend className="text-sm text-text-secondary">Symptoms (none is a valid answer)</legend>
-        <div className="flex flex-wrap gap-2">
-          {SYMPTOMS.map((s) => (
-            <label key={s} className="flex items-center gap-2 rounded-chip border border-border-subtle px-3 py-1 text-sm">
-              <input type="checkbox" checked={symptoms.includes(s)} onChange={() => toggle(s)} />
-              {s}
+        <legend className="text-sm text-text-secondary">Mood (1 = low, 5 = high)</legend>
+        <div className="flex gap-3">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <label key={n} className="flex items-center gap-1 text-sm">
+              <input
+                type="radio"
+                name="mood"
+                value={n}
+                checked={wellbeing.moodScore === String(n)}
+                onChange={() => onChange({ moodScore: String(n) })}
+              />
+              {n}
+            </label>
+          ))}
+        </div>
+        {errors.moodScore ? <p role="alert" className="text-xs text-accent-crimson">{errors.moodScore}</p> : null}
+      </fieldset>
+
+      <NumericInput
+        label="Stress"
+        unit="points"
+        value={wellbeing.stressScore}
+        onChange={(v) => onChange({ stressScore: v })}
+        rangeHint="0 to 10 points"
+        error={errors.stressScore}
+      />
+
+      <NumericInput
+        label="Sleep last night"
+        unit="h"
+        value={wellbeing.sleepHours}
+        onChange={(v) => onChange({ sleepHours: v })}
+        rangeHint="0 to 24 hours"
+        error={errors.sleepHours}
+        inputMode="decimal"
+      />
+
+      <fieldset className="space-y-2">
+        <legend className="text-sm text-text-secondary">Symptoms today</legend>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          {SYMPTOM_OPTIONS.map((s) => (
+            <label key={s.value} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={wellbeing.symptoms.includes(s.value as Symptom)}
+                onChange={() => onToggleSymptom(s.value as Symptom)}
+              />
+              {s.label}
             </label>
           ))}
         </div>
       </fieldset>
-    </Card>
+
+      <label className="block space-y-1 text-sm">
+        <span className="block text-text-secondary">Notes (optional)</span>
+        <textarea
+          value={wellbeing.notes}
+          onChange={(e) => onChange({ notes: e.target.value })}
+          rows={3}
+          className="w-full rounded-chip border border-border-subtle bg-bg-surface p-2 text-sm"
+        />
+        <span className={`block text-xs ${wellbeing.notes.length > NOTES_MAX ? 'text-accent-crimson' : 'text-text-secondary'}`}>
+          {wellbeing.notes.length} / {NOTES_MAX}
+        </span>
+        {errors.notes ? <span role="alert" className="block text-xs text-accent-crimson">{errors.notes}</span> : null}
+      </label>
+    </section>
   );
 }
 
-// Step 6: every value with its origin badge. Values can be corrected by returning to step 4 or 5.
-export function StepReview({ readings, missing }: { readings: Reading[]; missing: ManualKey[] }) {
-  const manual = useScanStore((s) => s.manual);
-  const mood = useScanStore((s) => s.mood);
-  const stress = useScanStore((s) => s.stress);
-  const rows = [
-    ...readings.filter((r) => r.value !== null).map((r) => ({ name: r.name, value: `${r.value} ${r.unit}`, source: r.provenance })),
-    ...missing
-      .filter((k) => manual[k])
-      .map((k) => ({ name: k, value: manual[k] ?? '', source: 'MANUAL' as const })),
-    { name: 'Mood', value: `${mood ?? '-'} / 5`, source: 'SELF-REPORT' as const },
-    { name: 'Stress', value: `${stress ?? '-'} / 5`, source: 'SELF-REPORT' as const },
-  ];
+// Step 4: everything that will be sent, with its source, before anything leaves the device.
+export function StepReview({
+  requirements,
+  metricsByKey,
+  draft,
+}: {
+  requirements: ScanRequirement[];
+  metricsByKey: Map<string, MetricOut>;
+  draft: ScanDraft;
+}) {
+  const w = draft.wellbeing;
   return (
-    <Card>
-      <h2 className="text-lg font-semibold">Review</h2>
-      <table className="mt-3 w-full text-sm">
-        <tbody className="divide-y divide-border-subtle">
-          {rows.map((row, i) => (
-            <tr key={i}>
-              <td className="py-2 text-text-secondary">{row.name}</td>
-              <td className="py-2 font-mono">{row.value}</td>
-              <td className="py-2 text-right">
-                <ProvenanceBadge source={row.source} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Card>
+    <section aria-label="Review" className="space-y-4">
+      <Card>
+        <h2 className="text-sm font-semibold">Measurements to store</h2>
+        {requirements.length === 0 ? (
+          <p className="mt-2 text-sm text-text-secondary">None today.</p>
+        ) : (
+          <ul className="mt-2 space-y-2 text-sm">
+            {requirements.map((req) => {
+              const entry = draft.entries[req.metric_key];
+              const metric = metricsByKey.get(req.metric_key);
+              return (
+                <li key={req.metric_key} className="flex flex-wrap items-center gap-3">
+                  <span>{req.display_name}</span>
+                  <span className="font-mono">
+                    {entry?.value ? formatValue(Number(entry.value)) : '—'} {metric?.canonical_unit ?? req.unit}
+                  </span>
+                  <span className="text-xs text-text-secondary">{SOURCE_LABEL[entry?.sourceType ?? ''] ?? 'No source'}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
+      <Card>
+        <h2 className="text-sm font-semibold">Wellbeing (self-reported)</h2>
+        <p className="mt-2 text-sm">
+          Mood {w.moodScore || '—'} · Stress {w.stressScore || '—'} · Sleep {w.sleepHours || '—'} h · Symptoms{' '}
+          {w.symptoms.length ? w.symptoms.join(', ') : 'none'}
+        </p>
+        {w.notes.trim() ? <p className="mt-1 text-xs text-text-secondary">Notes: {w.notes.trim()}</p> : null}
+      </Card>
+      <p className="text-xs text-text-secondary">
+        Submitting stores this scan on the server, then runs the monitoring rules. Results are guidance from personal history, not a diagnosis.
+      </p>
+    </section>
   );
 }

@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useConnectivity } from './useConnectivity';
-import { flushQueue, pendingCount } from '../services/offline/syncManager';
+import { flushQueue, queueCounts } from '../services/offline/syncManager';
 
-// Flushes the queue when online and reports how many scans are still waiting (Spec, Section 10).
-// Polls every 3 seconds because the queue lives in IndexedDB, not in React state.
-export function useOfflineSync(): { pending: number } {
+// Sends queued scans whenever the device is online, and reports how many are still waiting or rejected.
+// Polls because the queue lives in IndexedDB, not in React state.
+export function useOfflineSync(): { pending: number; rejected: number } {
   const { online } = useConnectivity();
-  const [pending, setPending] = useState(0);
+  const [counts, setCounts] = useState({ pending: 0, rejected: 0 });
 
   useEffect(() => {
     let alive = true;
     const tick = async () => {
       if (online) await flushQueue();
-      const n = await pendingCount();
-      if (alive) setPending(n);
+      const next = await queueCounts();
+      if (alive) setCounts(next);
     };
     void tick();
     const id = window.setInterval(() => void tick(), 3000);
@@ -23,5 +23,5 @@ export function useOfflineSync(): { pending: number } {
     };
   }, [online]);
 
-  return { pending };
+  return counts;
 }

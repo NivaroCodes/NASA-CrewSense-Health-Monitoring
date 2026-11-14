@@ -1,122 +1,319 @@
-import { useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
-import { useHealthOverview } from '../../hooks/useHealthOverview';
-import { useScanStore, type ScanStep, type ScanState } from '../../store/useScanStore';
-import { finalizeScan, loadDraft, saveDraft } from '../../services/offline/scanRepo';
-import type { ScanDraftPayload } from '../../services/offline/db';
-import { canAdvance } from './validateStep';
+import { Card } from '../../components/ui/Card';
+import { ErrorDetailList } from './ErrorDetailList';
+import { ApiError } from '../../services/api/client';
+import { getScan, submitScan } from '../../services/api/endpoints';
+import { deleteDraft, loadDraft, queueScan, saveDraft } from '../../services/offline/scanRepo';
+import { useScanStore } from '../../store/useScanStore';
+import type { Dashboard, ErrorDetail, MetricOut, ScanCreate, ScanOut } from '../../types/api';
+import type { ManualEntry, ScanDraft, ScanStep } from '../../types/scanDraft';
+import { toLocalInputValue } from '../../utils/datetime';
+import { buildScanBody } from './buildScanBody';
 import { ScanProgress } from './ScanProgress';
-import { computeMissing } from './missing';
-import { StepAnalyse, StepOverview, StepSave } from './StepResult';
-import { StepManualEntry, StepMissing, StepReview, StepSensorFetch, StepStart, StepWellbeing } from './steps';
+import { ScanResultView } from './ScanResultView';
+import { StepMeasurements, StepOverview, StepReview, StepWellbeing } from './steps';
+import { mapServerErrors, stepErrors, type FieldErrors } from './validateStep';
 
-function snapshot(s: ScanState): ScanDraftPayload {
-  return { step: s.step, manual: s.manual, mood: s.mood, stress: s.stress, symptoms: s.symptoms };
+type Outcome = { kind: 'saved'; scan: ScanOut; verified: boolean } | { kind: 'queued' };
+
+interface Props {
+  dashboard: Dashboard;
+  fromCache: boolean;
+  metricsByKey: Map<string, MetricOut>;
 }
 
-// One container, one session, one progress indicator (Spec, Section 6). The container never changes route
-// between steps, and Back never clears entered values.
-export function ScanWizard() {
-  const navigate = useNavigate();
-  const { data } = useHealthOverview();
-  const state = useScanStore();
-  const readings = data?.readings ?? [];
-  const missing = useMemo(() => computeMissing(readings), [readings]);
+const hasContent = (draft: ScanDraft) =>
+  Object.keys(draft.entries).length > 0 || Object.values(draft.wellbeing).some((v) => (Array.isArray(v) ? v.length > 0 : v !== ''));
 
-  // Restore an unfinished scan after a reload (Spec, Section 6, Step 1).
+// The Daily Health Scan as one container across four steps. Drafts survive reloads. A submission is sent once.
+export function ScanWizard({ dashboard, fromCache, metricsByKey }: Props) {
+  const queryClient = useQueryClient();
+  const store = useScanStore();
+  const requirements = dashboard.scan_requirements;
+  const hasMeasurements = requirements.length > 0;
+  const defaultObservedAt = toLocalInputValue(dashboard.as_of);
+
+  const [ready, setReady] = useState(false);
+  const [restored, setRestored] = useState(false);
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [serverFields, setServerFields] = useState<FieldErrors>({});
+  const [serverGeneral, setServerGeneral] = useState<string[]>([]);
+  const [serverDetails, setServerDetails] = useState<ErrorDetail[]>([]);
+  const submittingRef = useRef(false);
+
+  // Restore an unfinished scan from IndexedDB, or start a new one.
   useEffect(() => {
-    let cancelled = false;
+    let alive = true;
     void (async () => {
-      if (useScanStore.getState().scanId) return;
-      const draft = await loadDraft();
-      if (cancelled || !draft) return;
-      const p = draft.payload;
-      useScanStore.setState({ scanId: draft.scanId, step: p.step, manual: p.manual, mood: p.mood, stress: p.stress, symptoms: p.symptoms });
+      const stored = await loadDraft();
+      if (!alive) return;
+      if (stored?.draft && stored.scanId) {
+        useScanStore.getState().restore(stored.scanId, stored.draft);
+        setRestored(hasContent(stored.draft));
+      } else {
+        useScanStore.getState().begin();
+      }
+      setReady(true);
     })();
     return () => {
-      cancelled = true;
+      alive = false;
     };
   }, []);
 
-  // Save the draft on every change so a reload resumes at the same step with values intact.
+  // Every change is written to IndexedDB, so a reload resumes at the same step with the same values.
+  useEffect(
+    () =>
+      useScanStore.subscribe((s) => {
+        if (s.scanId) void saveDraft(s.scanId, { step: s.step, entries: s.entries, wellbeing: s.wellbeing });
+      }),
+    [],
+  );
+
+  // Pre-fill each requested value with its source type and the dashboard reference time. The astronaut's edits are kept.
   useEffect(() => {
-    return useScanStore.subscribe((s) => {
-      if (!s.scanId) return;
-      void saveDraft(s.scanId, snapshot(s));
-    });
-  }, []);
+    if (!ready) return;
+    const defaults: Record<string, ManualEntry> = {};
+    for (const req of requirements) {
+      defaults[req.metric_key] = {
+        value: '',
+        observedAt: defaultObservedAt,
+        sourceType: req.allowed_source_types[0] ?? 'manual_input',
+      };
+    }
+    useScanStore.getState().ensureEntries(defaults);
+  }, [ready, requirements, defaultObservedAt]);
 
-  // Step 4 is skipped when nothing is missing (Spec, Section 6, Step 3).
-  const effectiveNext = (from: ScanStep): ScanStep => {
-    if (from === 3 && missing.length === 0) return 5;
-    return (from + 1) as ScanStep;
+  const draft: ScanDraft = { step: store.step, entries: store.entries, wellbeing: store.wellbeing };
+  const inputs = { requirements, metricsByKey, draft };
+  const clientErrors = stepErrors(store.step, inputs);
+  const shownErrors: FieldErrors = { ...clientErrors, ...serverFields };
+  const blocked = Object.keys(clientErrors).length > 0;
+
+  const nextOf = (s: ScanStep): ScanStep | null => {
+    if (s === 1) return hasMeasurements ? 2 : 3;
+    if (s === 2) return 3;
+    if (s === 3) return 4;
+    return null;
   };
-  const effectiveBack = (from: ScanStep): ScanStep => {
-    if (from === 5 && missing.length === 0) return 3;
-    return (from - 1) as ScanStep;
+  const prevOf = (s: ScanStep): ScanStep | null => {
+    if (s === 4) return 3;
+    if (s === 3) return hasMeasurements ? 2 : 1;
+    if (s === 2) return 1;
+    return null;
   };
 
-  const gate = canAdvance(state.step, state, missing);
-
-  const next = () => {
-    if (!gate.ok) return;
-    state.setStep(effectiveNext(state.step));
+  const goNext = () => {
+    const next = nextOf(store.step);
+    if (next !== null && !blocked) store.setStep(next);
   };
-  const back = () => state.setStep(effectiveBack(state.step));
-
-  // Step 9: write the scan and queue it for sync in one transaction, then leave the scan (Spec, Section 6).
-  const finish = async () => {
-    const s = useScanStore.getState();
-    if (s.scanId) await finalizeScan(s.scanId, snapshot(s));
-    state.reset();
-    navigate('/dashboard');
+  const goBack = () => {
+    const prev = prevOf(store.step);
+    if (prev !== null) store.setStep(prev);
   };
 
-  if (state.scanId === null) {
-    return <StepStart onBegin={() => state.begin()} />;
+  const submit = async () => {
+    if (submittingRef.current || !store.scanId) return;
+    const scanId = store.scanId;
+    submittingRef.current = true;
+    setSubmitting(true);
+    setFormError(null);
+    setServerFields({});
+    setServerGeneral([]);
+    setServerDetails([]);
+
+    let body: ScanCreate;
+    try {
+      body = buildScanBody({
+        astronautId: dashboard.astronaut.id,
+        asOf: dashboard.as_of,
+        draft,
+        requirements,
+        metricsByKey,
+      });
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'The scan could not be prepared.');
+      submittingRef.current = false;
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      const saved = await submitScan(body);
+      let verified = false;
+      try {
+        await getScan(saved.id);
+        verified = true;
+      } catch {
+        verified = false;
+      }
+      await deleteDraft(scanId);
+      useScanStore.getState().begin();
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      void queryClient.invalidateQueries({ queryKey: ['scans'] });
+      void queryClient.invalidateQueries({ queryKey: ['alerts'] });
+      void queryClient.invalidateQueries({ queryKey: ['measurements'] });
+      setOutcome({ kind: 'saved', scan: saved, verified });
+    } catch (err) {
+      if (err instanceof ApiError && err.isNetworkFailure) {
+        // No answer from the server: keep the scan on this device and send it when the link returns.
+        await queueScan(scanId, body);
+        useScanStore.getState().begin();
+        setOutcome({ kind: 'queued' });
+      } else if (err instanceof ApiError) {
+        const mapped = mapServerErrors(err.details, requirements);
+        setServerFields(mapped.fields);
+        setServerGeneral(mapped.general);
+        setServerDetails(err.details);
+        setFormError(`${err.message} (${err.code}). Nothing was stored; correct the values and submit again.`);
+      } else {
+        setFormError('An unexpected error occurred. Your entries are kept.');
+      }
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  };
+
+  const discard = async () => {
+    if (store.scanId) await deleteDraft(store.scanId);
+    useScanStore.getState().begin();
+    setRestored(false);
+    setServerFields({});
+    setServerGeneral([]);
+    setServerDetails([]);
+    setFormError(null);
+  };
+
+  if (!ready) return <p className="text-sm text-text-secondary">Loading the scan…</p>;
+
+  if (outcome?.kind === 'saved') {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <p className="text-sm">
+            Scan #{outcome.scan.id} was stored on the server.
+            {outcome.verified ? ' It was read back from the server to confirm.' : ' The read-back check failed; open it from History to confirm.'}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <Button variant="secondary" onClick={() => setOutcome(null)}>
+              Start another scan
+            </Button>
+            <Link to="/dashboard" className="self-center text-sm text-accent-cyan underline">
+              Back to dashboard
+            </Link>
+          </div>
+        </Card>
+        <ScanResultView scan={outcome.scan} />
+      </div>
+    );
   }
 
-  const current = (() => {
-    switch (state.step) {
-      case 1:
-        return null;
-      case 2:
-        return <StepSensorFetch readings={readings} />;
-      case 3:
-        return <StepMissing missing={missing} />;
-      case 4:
-        return <StepManualEntry missing={missing} />;
-      case 5:
-        return <StepWellbeing />;
-      case 6:
-        return <StepReview readings={readings} missing={missing} />;
-      case 7:
-        return <StepAnalyse onContinue={next} />;
-      case 8:
-        return <StepOverview />;
-      case 9:
-        return <StepSave onFinish={finish} />;
-    }
-  })();
+  if (outcome?.kind === 'queued') {
+    return (
+      <Card className="space-y-3">
+        <p className="text-sm">The server did not answer, so this scan is saved on this device.</p>
+        <p className="text-sm text-text-secondary">It will be sent automatically when the backend is reachable. The header shows how many are waiting.</p>
+        <Button variant="secondary" onClick={() => setOutcome(null)}>
+          Start another scan
+        </Button>
+      </Card>
+    );
+  }
 
-  // Steps 7 to 9 carry their own controls.
-  const showNav = state.step !== 7 && state.step !== 9;
+  const isLast = store.step === 4;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <ScanProgress step={state.step} />
-      {current}
-      {showNav ? (
-        <div className="flex flex-wrap items-center gap-4">
-          <Button variant="secondary" onClick={back} disabled={state.step === 1} disabledReason={state.step === 1 ? 'Nothing before the first step' : undefined}>
-            Back
-          </Button>
-          <Button onClick={next} disabled={!gate.ok} disabledReason={gate.reason}>
-            Next
-          </Button>
+      <ScanProgress step={store.step} hasMeasurements={hasMeasurements} />
+
+      {restored ? (
+        <Card>
+          <p className="text-sm text-text-secondary">An unfinished scan from this device was restored.</p>
+          <button type="button" onClick={() => void discard()} className="mt-2 text-sm text-accent-amber underline">
+            Discard it and start again
+          </button>
+        </Card>
+      ) : null}
+
+      {fromCache ? (
+        <p className="text-sm text-accent-amber">
+          Offline: the requirements come from the last cached dashboard. Submitting now stores the scan on this device.
+        </p>
+      ) : null}
+
+      {store.step === 1 ? <StepOverview dashboard={dashboard} requirements={requirements} /> : null}
+      {store.step === 2 ? (
+        <StepMeasurements
+          requirements={requirements}
+          metricsByKey={metricsByKey}
+          entries={store.entries}
+          errors={shownErrors}
+          onEntry={(metricKey, patch) => {
+            setServerFields({});
+            store.setEntry(metricKey, patch);
+          }}
+          defaultObservedAt={defaultObservedAt}
+        />
+      ) : null}
+      {store.step === 3 ? (
+        <StepWellbeing
+          wellbeing={store.wellbeing}
+          errors={shownErrors}
+          onChange={(patch) => {
+            setServerFields({});
+            store.setWellbeing(patch);
+          }}
+          onToggleSymptom={(s) => store.toggleSymptom(s)}
+        />
+      ) : null}
+      {store.step === 4 ? <StepReview requirements={requirements} metricsByKey={metricsByKey} draft={draft} /> : null}
+
+      {formError ? (
+        <div role="alert" className="space-y-2">
+          <p className="text-sm text-accent-crimson">{formError}</p>
+          {serverGeneral.length > 0 ? (
+            <ul className="list-disc pl-5 text-xs text-accent-crimson">
+              {serverGeneral.map((g) => (
+                <li key={g}>{g}</li>
+              ))}
+            </ul>
+          ) : null}
+          <ErrorDetailList details={serverDetails} />
         </div>
       ) : null}
+
+      <div className="flex flex-wrap items-center gap-3">
+        {prevOf(store.step) !== null ? (
+          <Button variant="secondary" onClick={goBack} disabled={submitting}>
+            Back
+          </Button>
+        ) : null}
+        {isLast ? (
+          <Button
+            variant="primary"
+            onClick={() => void submit()}
+            loading={submitting}
+            disabled={submitting}
+            disabledReason={submitting ? 'Submitting…' : undefined}
+          >
+            Submit scan
+          </Button>
+        ) : (
+          <Button
+            variant="primary"
+            onClick={goNext}
+            disabled={blocked}
+            disabledReason={blocked ? 'Correct the highlighted values to continue.' : undefined}
+          >
+            Next
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

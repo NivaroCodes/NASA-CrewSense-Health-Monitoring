@@ -1,41 +1,32 @@
 import { useState } from 'react';
+import { useBackendHealth } from '../../hooks/useBackendHealth';
 import { useConnectivity } from '../../hooks/useConnectivity';
-import { useMet } from '../../hooks/useMet';
-import { useMissionStore } from '../../store/useMissionStore';
+import { useDashboard } from '../../hooks/useDashboard';
 import { useOfflineSync } from '../../hooks/useOfflineSync';
+import { pad3 } from '../../utils/format';
 
-// Fixed mission header (Spec, Section 4 and Section 5, Component A).
-// The clock lives in its own component so its once-per-second updates re-render only itself.
-function MetClock({ start }: { start: string | null }) {
-  const met = useMet(start);
-  if (met === null) {
-    return <span className="font-mono text-xs text-text-secondary">MET unavailable</span>;
-  }
-  return <span className="font-mono text-xs text-text-primary">{met}</span>;
-}
-
-function ConnectionChip({ online }: { online: boolean }) {
+// Fixed header. The API chip reflects the server actually answering (GET /health), not only the browser's online flag.
+function ApiChip() {
+  const health = useBackendHealth();
   const [open, setOpen] = useState(false);
+  const up = health.data?.database === 'ok';
+  const label = health.isPending ? 'API …' : up ? 'API ONLINE' : 'API UNREACHABLE';
+  const tone = up ? 'border-accent-cyan text-accent-cyan' : 'border-accent-amber text-accent-amber';
   return (
     <span className="relative">
       <button
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className={`rounded-chip border px-2 py-0.5 font-mono text-xs ${
-          online ? 'border-accent-cyan text-accent-cyan' : 'border-accent-amber text-accent-amber'
-        }`}
+        className={`rounded-chip border px-2 py-0.5 font-mono text-xs ${tone}`}
       >
-        {online ? 'DSN LINK ONLINE' : 'DSN DISCONNECTED'}
+        {label}
       </button>
       {open ? (
-        <span
-          role="note"
-          className="absolute right-0 top-full z-10 mt-2 w-64 rounded-card border border-border-subtle bg-bg-surface p-3 text-xs text-text-secondary"
-        >
-          {online
-            ? 'The device reports a network connection. Data is synced when the link is confirmed.'
-            : 'No network connection. Values shown are cached, and new scans are queued until the link returns.'}
+        <span role="note" className="absolute right-0 top-full z-10 mt-2 w-72 rounded-card border border-border-subtle bg-bg-surface p-3 text-xs text-text-secondary">
+          {up
+            ? `Backend reachable. Server time ${health.data?.server_time ?? ''}.`
+            : 'The backend did not answer the health check. Values shown may be cached, and new scans are queued on this device.'}
         </span>
       ) : null}
     </span>
@@ -44,28 +35,31 @@ function ConnectionChip({ online }: { online: boolean }) {
 
 export function Header() {
   const { online } = useConnectivity();
-  const { pending } = useOfflineSync();
-  const missionStart = useMissionStore((s) => s.missionStart);
-  const missionTag = useMissionStore((s) => s.missionTag);
+  const { pending, rejected } = useOfflineSync();
+  const dashboard = useDashboard();
+  const loaded = dashboard.data;
+  const d = loaded?.data;
 
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle bg-bg-surface px-4 py-3">
-      <div className="flex items-baseline gap-3">
+      <div className="flex flex-wrap items-baseline gap-3">
         <span className="font-sans text-lg font-semibold">CrewSense</span>
-        <span className="text-xs text-text-secondary">{missionTag ?? 'Mission data unavailable'}</span>
+        <span className="text-xs text-text-secondary">
+          {d
+            ? `${d.astronaut.display_name} (${d.astronaut.display_id}) · Mission Day ${pad3(d.mission.mission_day)}${loaded?.fromCache ? ' · cached' : ''}`
+            : 'Mission data unavailable'}
+        </span>
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <MetClock start={missionStart} />
-        <ConnectionChip online={online} />
+        <ApiChip />
         {pending > 0 ? (
-          <span className="rounded-chip border border-accent-amber px-2 py-0.5 font-mono text-xs text-accent-amber">
-            {pending} queued
-          </span>
+          <span className="rounded-chip border border-accent-amber px-2 py-0.5 font-mono text-xs text-accent-amber">{pending} queued</span>
+        ) : null}
+        {rejected > 0 ? (
+          <span className="rounded-chip border border-accent-crimson px-2 py-0.5 font-mono text-xs text-accent-crimson">{rejected} rejected</span>
         ) : null}
         {!online ? (
-          <span className="rounded-chip bg-accent-amber/10 px-2 py-0.5 font-mono text-xs text-accent-amber">
-            AUTONOMOUS MODE ENABLED
-          </span>
+          <span className="rounded-chip bg-accent-amber/10 px-2 py-0.5 font-mono text-xs text-accent-amber">DEVICE OFFLINE</span>
         ) : null}
       </div>
     </header>

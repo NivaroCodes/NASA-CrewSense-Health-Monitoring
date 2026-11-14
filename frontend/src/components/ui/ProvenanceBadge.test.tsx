@@ -6,20 +6,20 @@ import { ProvenanceBadge } from './ProvenanceBadge';
 afterEach(() => cleanup());
 
 describe('ProvenanceBadge', () => {
-  it('labels a synthetic value so it cannot pass as a live reading', () => {
-    const { container, getByText } = render(<ProvenanceBadge source="SYNTHETIC" />);
+  it('names the source the backend reported', () => {
+    const { getByText } = render(<ProvenanceBadge sourceType="imported_examination" />);
+    expect(getByText('Imported examination')).toBeTruthy();
+  });
+
+  it('marks synthetic demo values so they cannot pass as live readings', () => {
+    const { container, getByText } = render(<ProvenanceBadge sourceType="sensor_reading" isSynthetic />);
     expect(getByText('Synthetic demo')).toBeTruthy();
-    expect(container.querySelector('[data-provenance="SYNTHETIC"]')?.className).toContain('border-dashed');
+    expect(container.querySelector('[data-synthetic="true"]')).not.toBeNull();
   });
 
-  it('labels a sensor reading with its source', () => {
-    const { getByText } = render(<ProvenanceBadge source="SENSOR" />);
-    expect(getByText('Sensor')).toBeTruthy();
-  });
-
-  it('never shows an unknown source as if it were measured', () => {
-    const { getByText, container } = render(<ProvenanceBadge source={undefined} />);
-    expect(getByText('Source unknown')).toBeTruthy();
-    expect(container.querySelector('[data-provenance]')).toBeNull();
+  it('shows an absent source as absent, never as a measurement', () => {
+    const { getByText, container } = render(<ProvenanceBadge sourceType={undefined} />);
+    expect(getByText('No source')).toBeTruthy();
+    expect(container.querySelector('[data-synthetic]')).toBeNull();
   });
 });

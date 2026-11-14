@@ -1,27 +1,17 @@
-import { PROVENANCE_LABEL, type Provenance } from '../../types/provenance';
+import { SOURCE_LABEL } from '../../utils/labels';
 
-// Every value on screen carries one of these (Spec, Phase 5.7).
-// SYNTHETIC is rendered with a distinct outline so it cannot pass as a live reading.
-export function ProvenanceBadge({ source }: { source: Provenance | undefined }) {
-  if (!source) {
-    return (
-      <span className="inline-flex items-center rounded-chip border border-status-slate px-1.5 py-0.5 font-mono text-xs text-status-slate">
-        Source unknown
-      </span>
-    );
-  }
-  const synthetic = source === 'SYNTHETIC';
+// Where a value came from. Synthetic demo data is marked separately and never looks like a live reading.
+export function ProvenanceBadge({ sourceType, isSynthetic = false }: { sourceType: string | undefined; isSynthetic?: boolean }) {
   return (
-    <span
-      className={[
-        'inline-flex items-center rounded-chip px-1.5 py-0.5 font-mono text-xs',
-        synthetic
-          ? 'border border-dashed border-accent-amber text-accent-amber'
-          : 'bg-bg-surface-raised text-text-secondary',
-      ].join(' ')}
-      data-provenance={source}
-    >
-      {PROVENANCE_LABEL[source]}
+    <span className="inline-flex flex-wrap items-center gap-1">
+      <span className="rounded-chip bg-bg-surface-raised px-1.5 py-0.5 font-mono text-xs text-text-secondary" data-source={sourceType ?? 'none'}>
+        {sourceType ? (SOURCE_LABEL[sourceType] ?? sourceType) : 'No source'}
+      </span>
+      {isSynthetic ? (
+        <span className="rounded-chip border border-dashed border-accent-amber px-1.5 py-0.5 font-mono text-xs text-accent-amber" data-synthetic="true">
+          Synthetic demo
+        </span>
+      ) : null}
     </span>
   );
 }

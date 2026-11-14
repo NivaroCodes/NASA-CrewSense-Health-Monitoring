@@ -1,46 +1,43 @@
 import { create } from 'zustand';
+import type { SourceTypeInput, Symptom } from '../types/api';
+import { EMPTY_WELLBEING, type ManualEntry, type ScanDraft, type ScanStep, type WellbeingDraft } from '../types/scanDraft';
 
-// Scan session state (Spec, Section 6). Lives across the nine steps so the container never remounts
-// with lost data. Draft persistence to IndexedDB arrives with T-019.
-export type ScanStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
-export type ManualKey = 'heartRate' | 'systolic' | 'diastolic' | 'temperature' | 'glucose' | 'sleep';
-
-export interface ScanState {
+// The scan in progress. Every change is written to IndexedDB by ScanWizard, so a reload resumes the same scan.
+interface ScanStore extends ScanDraft {
   scanId: string | null;
-  step: ScanStep;
-  // Entered as text so a half-typed value is kept, not coerced.
-  manual: Partial<Record<ManualKey, string>>;
-  mood: number | null;
-  stress: number | null;
-  symptoms: string[];
   begin: () => void;
+  restore: (scanId: string, draft: ScanDraft) => void;
   setStep: (step: ScanStep) => void;
-  setManual: (key: ManualKey, value: string) => void;
-  setMood: (value: number) => void;
-  setStress: (value: number) => void;
-  toggleSymptom: (symptom: string) => void;
-  reset: () => void;
+  ensureEntries: (defaults: Record<string, ManualEntry>) => void;
+  setEntry: (metricKey: string, patch: Partial<ManualEntry>) => void;
+  setWellbeing: (patch: Partial<WellbeingDraft>) => void;
+  toggleSymptom: (symptom: Symptom) => void;
 }
 
-const initial = {
-  scanId: null,
-  step: 1 as ScanStep,
-  manual: {},
-  mood: null,
-  stress: null,
-  symptoms: [] as string[],
-};
+const emptyDraft = (): ScanDraft => ({ step: 1, entries: {}, wellbeing: { ...EMPTY_WELLBEING } });
 
-export const useScanStore = create<ScanState>((set) => ({
-  ...initial,
-  begin: () => set({ ...initial, scanId: crypto.randomUUID(), step: 1 }),
+export const useScanStore = create<ScanStore>((set) => ({
+  scanId: null,
+  ...emptyDraft(),
+  begin: () => set({ scanId: crypto.randomUUID(), ...emptyDraft() }),
+  restore: (scanId, draft) => set({ scanId, ...draft }),
   setStep: (step) => set({ step }),
-  setManual: (key, value) => set((s) => ({ manual: { ...s.manual, [key]: value } })),
-  setMood: (value) => set({ mood: value }),
-  setStress: (value) => set({ stress: value }),
+  // Fills defaults for keys not yet touched, without overwriting what the astronaut has typed.
+  ensureEntries: (defaults) => set((s) => ({ entries: { ...defaults, ...s.entries } })),
+  setEntry: (metricKey, patch) =>
+    set((s) => {
+      const current = s.entries[metricKey];
+      const base: ManualEntry = { value: '', observedAt: '', sourceType: 'manual_input' as SourceTypeInput };
+      return { entries: { ...s.entries, [metricKey]: { ...base, ...current, ...patch } } };
+    }),
+  setWellbeing: (patch) => set((s) => ({ wellbeing: { ...s.wellbeing, ...patch } })),
   toggleSymptom: (symptom) =>
     set((s) => ({
-      symptoms: s.symptoms.includes(symptom) ? s.symptoms.filter((x) => x !== symptom) : [...s.symptoms, symptom],
+      wellbeing: {
+        ...s.wellbeing,
+        symptoms: s.wellbeing.symptoms.includes(symptom)
+          ? s.wellbeing.symptoms.filter((x) => x !== symptom)
+          : [...s.wellbeing.symptoms, symptom],
+      },
     })),
-  reset: () => set({ ...initial }),
 }));

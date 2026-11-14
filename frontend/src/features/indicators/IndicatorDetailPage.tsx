@@ -1,30 +1,34 @@
 import { Link, useParams } from 'react-router-dom';
+import { MeasurementChart } from '../../components/charts/MeasurementChart';
 import { Card } from '../../components/ui/Card';
+import { ErrorPanel } from '../../components/ui/ErrorPanel';
+import { PageSkeleton } from '../../components/ui/Loading';
 import { PlaceholderPanel } from '../../components/ui/EmptyState';
 import { ProvenanceBadge } from '../../components/ui/ProvenanceBadge';
-import { Skeleton } from '../../components/ui/Skeleton';
-import { useHealthOverview } from '../../hooks/useHealthOverview';
-import { TrendPanel } from '../history/TrendPanel';
-import type { IndicatorId } from '../../types/telemetry';
+import { useDashboard } from '../../hooks/useDashboard';
+import { useMeasurements } from '../../hooks/useLists';
+import { useMetrics } from '../../hooks/useMetrics';
+import { IndicatorCard } from '../dashboard/IndicatorCard';
+import { formatDateTime } from '../../utils/datetime';
+import { formatValue } from '../../utils/format';
 
-const KNOWN: IndicatorId[] = ['heartRate', 'bloodPressure', 'bloodGlucose', 'bodyTemperature', 'sleepDuration', 'mood'];
-
-// Indicator detail (Spec, Section 7): current reading with provenance, then its 30-day trend.
+// Indicator detail: the backend's current evaluation, its catalogue description, and every stored value for it.
 export function IndicatorDetailPage() {
   const { id } = useParams();
-  const { data, isPending, isError } = useHealthOverview();
+  const metrics = useMetrics();
+  const dash = useDashboard();
+  const history = useMeasurements({ metricKey: id, limit: 500 });
 
-  if (!id || !KNOWN.includes(id as IndicatorId)) {
-    return <PlaceholderPanel title="Indicator not found" note="This indicator is not part of the monitored set." />;
+  if (metrics.isPending || dash.isPending) return <PageSkeleton />;
+  if (metrics.isError) return <ErrorPanel title="Could not load indicator definitions." error={metrics.error} onRetry={() => void metrics.refetch()} />;
+
+  const metric = metrics.data?.data.items.find((m) => m.metric_key === id);
+  if (!metric) {
+    return <PlaceholderPanel title="Indicator not found" note="This indicator is not in the metric catalogue." />;
   }
-  const indicator = id as IndicatorId;
 
-  if (isPending) return <Skeleton className="h-48 w-full" />;
-  if (isError) {
-    return <PlaceholderPanel title="Indicator unavailable" note="Could not load the current reading. Try again from the dashboard." />;
-  }
-
-  const reading = data.readings.find((r) => r.id === indicator);
+  const indicator = dash.data?.data.indicators.find((i) => i.metric_key === metric.metric_key);
+  const points = (history.data?.items ?? []).map((m) => ({ observedAt: m.observed_at, value: m.value }));
 
   return (
     <div className="space-y-6">
@@ -32,31 +36,55 @@ export function IndicatorDetailPage() {
         Back to dashboard
       </Link>
 
-      <Card>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-sans font-semibold">{reading?.name ?? indicator}</h1>
-            {reading?.value != null ? (
-              <p className="mt-2 font-mono text-3xl">
-                {reading.value} <span className="text-base text-text-secondary">{reading.unit}</span>
-              </p>
-            ) : (
-              <p className="mt-2 text-sm text-text-secondary">No reading. Enter it manually from the Daily Health Scan.</p>
-            )}
-          </div>
-          <div className="space-y-2 text-right">
-            <ProvenanceBadge source={reading?.provenance} />
-            <p className="text-xs text-text-secondary">
-              Status: {reading?.status ?? 'Not reported by backend'}
-            </p>
-            {reading?.measuredAt ? (
-              <p className="text-xs text-text-secondary">Measured {new Date(reading.measuredAt).toLocaleString()}</p>
-            ) : null}
-          </div>
-        </div>
-      </Card>
+      <div>
+        <h1 className="text-xl font-sans font-semibold">{metric.display_name}</h1>
+        <p className="mt-1 text-sm text-text-secondary">{metric.description}</p>
+        <p className="mt-1 text-xs text-text-secondary">
+          Canonical unit {metric.canonical_unit} · freshness window {metric.freshness_hours} h · plausibility bounds{' '}
+          {metric.plausible_min} to {metric.plausible_max}
+        </p>
+      </div>
 
-      <TrendPanel id={indicator} title="30-day trend" />
+      {indicator ? (
+        <IndicatorCard indicator={indicator} showLink={false} />
+      ) : (
+        <Card>
+          <p className="text-sm text-text-secondary">The dashboard has no evaluation for this indicator.</p>
+        </Card>
+      )}
+
+      <Card>
+        <h2 className="text-sm font-semibold">Stored values</h2>
+        {history.isPending ? (
+          <p className="mt-2 text-sm text-text-secondary">Loading values…</p>
+        ) : history.isError ? (
+          <p role="alert" className="mt-2 text-sm">Could not load stored values.</p>
+        ) : (
+          <div className="mt-3 space-y-4">
+            <MeasurementChart
+              points={points}
+              unit={metric.canonical_unit}
+              freshnessHours={metric.freshness_hours}
+              referenceValue={indicator?.baseline?.reference_value ?? null}
+            />
+            <p className="text-xs text-text-secondary">
+              The dashed reference line is the personal baseline from the dashboard, when one exists. Breaks in the line mark gaps longer than twice the freshness window. Nothing is interpolated.
+            </p>
+            <ul className="divide-y divide-border-subtle text-sm">
+              {history.data.items.map((m) => (
+                <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <span className="font-mono">
+                    {formatValue(m.value)} {m.unit}
+                  </span>
+                  <span className="text-xs text-text-secondary">{formatDateTime(m.observed_at)}</span>
+                  <ProvenanceBadge sourceType={m.source_type} isSynthetic={m.is_synthetic} />
+                </li>
+              ))}
+            </ul>
+            {history.data.items.length === 0 ? <p className="text-sm text-text-secondary">No stored values yet.</p> : null}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
