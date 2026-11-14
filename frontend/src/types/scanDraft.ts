@@ -20,6 +20,8 @@ export interface WellbeingDraft {
 
 export interface ScanDraft {
   step: ScanStep;
+  // When the scan was created, UTC ISO. Fixed for the scan's life: it is the request's as_of, so every retry sends the same body.
+  startedAt: string;
   // Keyed by metric_key, only for values the backend asked for.
   entries: Record<string, ManualEntry>;
   wellbeing: WellbeingDraft;

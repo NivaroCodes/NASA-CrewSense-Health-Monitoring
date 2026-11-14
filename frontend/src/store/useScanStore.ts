@@ -14,13 +14,19 @@ interface ScanStore extends ScanDraft {
   toggleSymptom: (symptom: Symptom) => void;
 }
 
-const emptyDraft = (): ScanDraft => ({ step: 1, entries: {}, wellbeing: { ...EMPTY_WELLBEING } });
+const emptyDraft = (): ScanDraft => ({
+  step: 1,
+  entries: {},
+  wellbeing: { ...EMPTY_WELLBEING },
+  startedAt: new Date().toISOString(),
+});
 
 export const useScanStore = create<ScanStore>((set) => ({
   scanId: null,
   ...emptyDraft(),
   begin: () => set({ scanId: crypto.randomUUID(), ...emptyDraft() }),
-  restore: (scanId, draft) => set({ scanId, ...draft }),
+  // Drafts saved by earlier builds have no startedAt; they get one now, and it is saved with the next change.
+  restore: (scanId, draft) => set({ scanId, ...draft, startedAt: draft.startedAt || new Date().toISOString() }),
   setStep: (step) => set({ step }),
   // Fills defaults for keys not yet touched, without overwriting what the astronaut has typed.
   ensureEntries: (defaults) => set((s) => ({ entries: { ...defaults, ...s.entries } })),

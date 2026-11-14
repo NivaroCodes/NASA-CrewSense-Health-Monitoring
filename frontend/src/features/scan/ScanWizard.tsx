@@ -34,9 +34,8 @@ export function ScanWizard({ dashboard, fromCache, metricsByKey }: Props) {
   const store = useScanStore();
   const requirements = dashboard.scan_requirements;
   const hasMeasurements = requirements.length > 0;
-  // Default observation time is the moment this scan screen opened, never the dashboard's cached as_of.
-  const [openedAt] = useState(() => new Date().toISOString());
-  const defaultObservedAt = toLocalInputValue(openedAt);
+  // Default observation time is when this scan was created (persisted in the draft), never the dashboard's cached as_of.
+  const defaultObservedAt = toLocalInputValue(store.startedAt);
 
   const [ready, setReady] = useState(false);
   const [restored, setRestored] = useState(false);
@@ -71,7 +70,7 @@ export function ScanWizard({ dashboard, fromCache, metricsByKey }: Props) {
   useEffect(
     () =>
       useScanStore.subscribe((s) => {
-        if (s.scanId) void saveDraft(s.scanId, { step: s.step, entries: s.entries, wellbeing: s.wellbeing });
+        if (s.scanId) void saveDraft(s.scanId, { step: s.step, entries: s.entries, wellbeing: s.wellbeing, startedAt: s.startedAt });
       }),
     [],
   );
@@ -90,7 +89,7 @@ export function ScanWizard({ dashboard, fromCache, metricsByKey }: Props) {
     useScanStore.getState().ensureEntries(defaults);
   }, [ready, requirements, defaultObservedAt]);
 
-  const draft: ScanDraft = { step: store.step, entries: store.entries, wellbeing: store.wellbeing };
+  const draft: ScanDraft = { step: store.step, entries: store.entries, wellbeing: store.wellbeing, startedAt: store.startedAt };
   const inputs = { requirements, metricsByKey, draft };
   const clientErrors = stepErrors(store.step, inputs);
   const shownErrors: FieldErrors = { ...clientErrors, ...serverFields };
@@ -132,8 +131,8 @@ export function ScanWizard({ dashboard, fromCache, metricsByKey }: Props) {
     try {
       body = buildScanBody({
         astronautId: dashboard.astronaut.id,
-        // Reference time is the real submission time, so a cached dashboard cannot stamp a new scan with old time.
-        asOf: new Date().toISOString(),
+        // Reference time is when the scan was created. It is fixed in the draft, so a retry after a reload sends the same body.
+        asOf: draft.startedAt,
         // The scan's ID is created once when the scan begins and is reused by every retry.
         clientScanId: scanId,
         draft,
@@ -148,6 +147,8 @@ export function ScanWizard({ dashboard, fromCache, metricsByKey }: Props) {
     }
 
     try {
+      // The draft (with its scan ID and startedAt) is on disk before the first request leaves the device.
+      await saveDraft(scanId, draft);
       const saved = await submitScan(body);
       let verified = false;
       try {
@@ -174,7 +175,13 @@ export function ScanWizard({ dashboard, fromCache, metricsByKey }: Props) {
         setServerFields(mapped.fields);
         setServerGeneral(mapped.general);
         setServerDetails(err.details);
-        setFormError(`${err.message} (${err.code}). Nothing was stored; correct the values and submit again.`);
+        setFormError(
+          err.code === 'idempotency_conflict'
+            ? 'This scan was already saved with different values, so it was not stored again. Discard the draft to start a new scan.'
+            : err.status >= 500
+              ? `${err.message} (${err.code}). The scan may or may not have been saved. Submit again without changing the values: the same scan ID is reused, so it cannot be stored twice.`
+              : `${err.message} (${err.code}). Nothing was stored; correct the values and submit again.`,
+        );
       } else {
         setFormError('An unexpected error occurred. Your entries are kept.');
       }

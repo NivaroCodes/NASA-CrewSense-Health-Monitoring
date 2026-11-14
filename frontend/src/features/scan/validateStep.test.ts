@@ -32,7 +32,7 @@ const requirements: ScanRequirement[] = [
 const local = (iso: string) => toLocalInputValue(iso);
 
 function draftWith(entries: ScanDraft['entries'], wellbeing = { ...EMPTY_WELLBEING, moodScore: '4', stressScore: '3', sleepHours: '7' }): ScanDraft {
-  return { step: 2, entries, wellbeing };
+  return { step: 2, entries, wellbeing, startedAt: '2026-11-13T07:30:00Z' };
 }
 
 describe('measurementErrors', () => {

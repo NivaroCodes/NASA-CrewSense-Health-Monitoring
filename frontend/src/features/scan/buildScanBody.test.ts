@@ -30,6 +30,7 @@ const requirements: ScanRequirement[] = [
 
 const draft: ScanDraft = {
   step: 4,
+  startedAt: '2026-11-13T07:30:00Z',
   entries: {
     diastolic_bp: { value: ' 76 ', observedAt: toLocalInputValue('2026-11-13T07:05:00Z'), sourceType: 'manual_input' },
   },
@@ -60,6 +61,11 @@ describe('buildScanBody', () => {
         source_detail: 'Entered in CrewSense Daily Scan',
       },
     ]);
+  });
+
+  it('builds byte-identical bodies from the same draft, so a retry after a reload matches the original', () => {
+    const args = { astronautId: 1, asOf: draft.startedAt, clientScanId: CLIENT_ID, draft, requirements, metricsByKey };
+    expect(JSON.stringify(buildScanBody(args))).toBe(JSON.stringify(buildScanBody(args)));
   });
 
   it('carries the client_scan_id unchanged so retries can be recognised', () => {
