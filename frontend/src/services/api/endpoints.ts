@@ -1,6 +1,7 @@
 import { db, type ScanDraftPayload } from '../offline/db';
-import type { HealthOverview, Reading } from '../../types/telemetry';
-import { DEMO_OVERVIEW } from './fixtures';
+import type { HealthOverview, IndicatorId, Reading } from '../../types/telemetry';
+import type { TrendSeries } from '../../types/history';
+import { DEMO_OVERVIEW, DEMO_TRENDS } from './fixtures';
 
 // Single entry point for backend calls. Currently served by demonstration stand-ins.
 // Replace bodies when the contracts are agreed (T-021). Paths are TO BE AGREED WITH BACKEND OWNER.
@@ -49,6 +50,16 @@ async function readCachedOverview(): Promise<HealthOverview | null> {
     alerts,
     lastScanAt: null,
   };
+}
+
+// Reads one 30-day trend window. DEMONSTRATION STAND-IN. Trends are not cached offline yet, so they need a connection.
+// Returns null when the backend has no history for the indicator (for example blood pressure in the demo set).
+// Replace with GET /api/v1/telemetry/{id}/history when agreed (T-021).
+export async function getTrendSeries(id: IndicatorId): Promise<TrendSeries | null> {
+  if (!navigator.onLine) throw new Error('Trend history needs a connection.');
+  await delay(120);
+  const series = DEMO_TRENDS[id];
+  return series ? structuredClone(series) : null;
 }
 
 // Submits one finished scan. DEMONSTRATION STAND-IN: accepts the payload locally and reports analysis as pending.
