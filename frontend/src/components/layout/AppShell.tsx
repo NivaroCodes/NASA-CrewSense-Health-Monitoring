@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
+import { Header } from './Header';
 
 // Persistent frame: header plus navigation rail (Spec, Phase 5.1 and 5.2).
 // Mounted once; never unmounted on navigation.
@@ -12,10 +13,7 @@ const NAV = [
 export function AppShell() {
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b border-border-subtle bg-bg-surface px-4 py-3">
-        <span className="font-sans text-lg font-semibold">CrewSense</span>
-        <span className="font-mono text-xs text-text-secondary">MET --:--:--</span>
-      </header>
+      <Header />
       <div className="flex min-h-0 flex-1">
         <nav aria-label="Primary" className="w-40 shrink-0 border-r border-border-subtle bg-bg-surface p-2">
           <ul className="space-y-1">
