@@ -212,6 +212,9 @@ export interface ScanCreate {
   as_of?: string;
   wellbeing: WellbeingInput;
   new_measurements: MeasurementInput[];
+  // Client-generated idempotency key. The same ID with the same body returns the stored scan (200);
+  // the same ID with a different body is rejected with 409 idempotency_conflict.
+  client_scan_id?: string;
 }
 
 export interface EvidenceValues {
@@ -241,6 +244,7 @@ export interface ScanAlert {
 export interface ScanOut {
   id: number;
   astronaut_id: number;
+  client_scan_id?: string | null;
   submitted_at: string;
   as_of: string;
   mission_day: number;

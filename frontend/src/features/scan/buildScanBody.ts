@@ -6,6 +6,7 @@ import { fromLocalInputValue } from '../../utils/datetime';
 export function buildScanBody(args: {
   astronautId: number;
   asOf: string;
+  clientScanId: string;
   draft: ScanDraft;
   requirements: ScanRequirement[];
   metricsByKey: Map<string, MetricOut>;
@@ -31,6 +32,7 @@ export function buildScanBody(args: {
   const notes = w.notes.trim();
   return {
     astronaut_id: args.astronautId,
+    client_scan_id: args.clientScanId,
     as_of: args.asOf,
     wellbeing: {
       mood_score: Number(w.moodScore),

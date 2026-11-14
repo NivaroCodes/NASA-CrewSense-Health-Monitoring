@@ -1,6 +1,7 @@
 import { ApiError } from '../api/client';
 import { submitScan } from '../api/endpoints';
 import { db } from './db';
+import { ensureClientScanId } from './scanBody';
 
 // Outbound queue. A failed send waits longer each time: 2 s, 4 s, 8 s, capped at 60 s.
 // A server rejection (4xx) is not retried, because resending the same body would fail again. It is kept and marked REJECTED.
@@ -51,9 +52,13 @@ async function runFlush(now: number): Promise<number> {
       continue;
     }
 
+    // Give legacy queue entries their idempotency key and save it before the first send, so every retry carries the same key.
+    const body = ensureClientScanId(stored.body, item.scanId);
+    if (body !== stored.body) await db.scans.update(item.scanId, { body });
+
     await db.sync_queue.update(id, { status: 'SENDING' });
     try {
-      await submitScan(stored.body);
+      await submitScan(body);
       await db.transaction('rw', db.sync_queue, db.scans, async () => {
         await db.sync_queue.update(id, { status: 'SENT', lastError: undefined });
         await db.scans.update(item.scanId, { status: 'synced' });

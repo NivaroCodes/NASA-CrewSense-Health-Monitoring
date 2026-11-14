@@ -5,6 +5,8 @@ import { EMPTY_WELLBEING } from '../../types/scanDraft';
 import { toLocalInputValue } from '../../utils/datetime';
 import { buildScanBody } from './buildScanBody';
 
+const CLIENT_ID = '3f2c1a9e-6b1d-4f0e-9a33-2d7c5e8b1a10';
+
 const metricsByKey = new Map<string, MetricOut>([
   [
     'diastolic_bp',
@@ -36,7 +38,14 @@ const draft: ScanDraft = {
 
 describe('buildScanBody', () => {
   it('builds the contract body: astronaut, reference time, wellbeing and measurements in requirement order', () => {
-    const body = buildScanBody({ astronautId: 1, asOf: '2026-11-13T07:30:00Z', draft, requirements, metricsByKey });
+    const body = buildScanBody({
+      astronautId: 1,
+      asOf: '2026-11-13T07:30:00Z',
+      clientScanId: CLIENT_ID,
+      draft,
+      requirements,
+      metricsByKey,
+    });
 
     expect(body.astronaut_id).toBe(1);
     expect(body.as_of).toBe('2026-11-13T07:30:00Z');
@@ -53,10 +62,23 @@ describe('buildScanBody', () => {
     ]);
   });
 
+  it('carries the client_scan_id unchanged so retries can be recognised', () => {
+    const body = buildScanBody({
+      astronautId: 1,
+      asOf: '2026-11-13T07:30:00Z',
+      clientScanId: CLIENT_ID,
+      draft,
+      requirements,
+      metricsByKey,
+    });
+    expect(body.client_scan_id).toBe(CLIENT_ID);
+  });
+
   it('omits notes when they are blank and does not invent a measurement when none is required', () => {
     const body = buildScanBody({
       astronautId: 1,
       asOf: '2026-11-13T07:30:00Z',
+      clientScanId: CLIENT_ID,
       draft: { ...draft, wellbeing: { ...draft.wellbeing, notes: '   ' } },
       requirements: [],
       metricsByKey,
@@ -67,7 +89,14 @@ describe('buildScanBody', () => {
 
   it('refuses to build when a requested value is missing, rather than sending a placeholder', () => {
     expect(() =>
-      buildScanBody({ astronautId: 1, asOf: '2026-11-13T07:30:00Z', draft: { ...draft, entries: {} }, requirements, metricsByKey }),
+      buildScanBody({
+        astronautId: 1,
+        asOf: '2026-11-13T07:30:00Z',
+        clientScanId: CLIENT_ID,
+        draft: { ...draft, entries: {} },
+        requirements,
+        metricsByKey,
+      }),
     ).toThrow(/Diastolic/);
   });
 });

@@ -134,6 +134,8 @@ export function ScanWizard({ dashboard, fromCache, metricsByKey }: Props) {
         astronautId: dashboard.astronaut.id,
         // Reference time is the real submission time, so a cached dashboard cannot stamp a new scan with old time.
         asOf: new Date().toISOString(),
+        // The scan's ID is created once when the scan begins and is reused by every retry.
+        clientScanId: scanId,
         draft,
         requirements,
         metricsByKey,
