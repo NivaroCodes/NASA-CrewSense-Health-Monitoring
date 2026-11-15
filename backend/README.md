@@ -92,3 +92,32 @@ Test layout:
 - Imported laboratory results are entered through the API. No file import exists yet.
 - Hydration, nutrition, and environmental metrics (P1) are not seeded in this phase.
 - SQLite is single-writer, which is adequate for one local instance.
+
+## Production deployment (Railway + PostgreSQL)
+
+The API runs on Railway with a PostgreSQL database. `railway.json` (in this folder) sets the start command:
+`python -m alembic upgrade head && uvicorn app.main:create_app --factory --host 0.0.0.0 --port $PORT`.
+The health check is `/api/v1/health`.
+
+Environment variables (set in Railway, never committed):
+
+| Variable | Required | Value |
+|---|---|---|
+| `DATABASE_URL` | yes | Provided by the Railway PostgreSQL service. `postgres://` URLs are rewritten to the psycopg driver automatically. |
+| `CREWSENSE_CORS_ORIGINS` | yes | Comma-separated frontend origins, for example `https://<your-project>.vercel.app`. No trailing slash. |
+| `CREWSENSE_SEED_DEMO` | recommended | `true` seeds the synthetic Mission Day 087 astronaut. `false` leaves the database empty of astronauts. |
+| `CREWSENSE_DATABASE_URL` | no | Takes precedence over `DATABASE_URL` when set. Useful for local overrides. |
+
+Schema rules:
+
+- PostgreSQL schemas are created and changed only by Alembic migrations in `migrations/`. The application refuses to start on PostgreSQL if the schema is missing.
+- Local development and tests use SQLite and create the schema directly. SQLite is never used in production.
+- To add a schema change: edit the models, run `CREWSENSE_DATABASE_URL=sqlite:////tmp/gen.db python -m alembic revision --autogenerate -m "<message>"`, review the file, then commit it.
+
+Verification on PostgreSQL:
+
+```bash
+CREWSENSE_TEST_POSTGRES_URL=postgresql+psycopg://user:pass@host:5432/disposable_db pytest tests/persistence
+```
+
+This drops and recreates the `public` schema of the database named in the URL. Use a disposable database only.

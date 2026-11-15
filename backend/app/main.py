@@ -13,14 +13,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.errors import register_error_handlers
 from app.api.routes import alerts, dashboard, health, measurements, metrics, scans
 from app.core.config import API_PREFIX, API_VERSION, Settings, load_settings
-from app.core.database import init_db, make_engine, make_session_factory
+from app.core.database import ensure_migrated, init_db, make_engine, make_session_factory
 from app.services.demo_service import seed_demo_astronaut, seed_metric_definitions
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or load_settings()
     engine = make_engine(settings.database_url)
-    init_db(engine)
+    if engine.dialect.name == "sqlite":
+        # Local development and tests. PostgreSQL schemas come only from Alembic migrations.
+        init_db(engine)
+    else:
+        ensure_migrated(engine)
     session_factory = make_session_factory(engine)
 
     with session_factory() as session:
@@ -40,10 +44,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-        ],
+        allow_origins=list(settings.cors_origins),
         allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type"],

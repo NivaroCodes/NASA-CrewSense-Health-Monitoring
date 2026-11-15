@@ -45,6 +45,20 @@ def init_db(engine: Engine) -> None:
     _upgrade_scan_idempotency(engine)
 
 
+def ensure_migrated(engine: Engine) -> None:
+    """Refuse to start on a non-SQLite database that has no schema yet.
+
+    Production schemas are created and changed only by Alembic (`alembic upgrade head`), so the
+    application never guesses at tables on PostgreSQL.
+    """
+    from sqlalchemy import inspect
+
+    if "health_scans" not in inspect(engine).get_table_names():
+        raise RuntimeError(
+            "The database has no CrewSense schema. Run `alembic upgrade head` from the backend folder before starting the API."
+        )
+
+
 def _upgrade_scan_idempotency(engine: Engine) -> None:
     """Add the scan idempotency columns and index to a SQLite database created before they existed.
 
