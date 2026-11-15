@@ -1,20 +1,22 @@
 # Fly.io configuration for the CrewSense FastAPI backend.
 #
 # Deploy from the backend folder (Fly reads this file from the current directory):
-#   fly launch --no-deploy --copy-config --name <unique-app-name>   (first time only)
+# The app `nasa-crewsense-health-monitoring` already exists in region `ams` (Amsterdam).
 #   fly secrets set DATABASE_URL="<postgres url>" CREWSENSE_CORS_ORIGINS="https://<vercel-domain>"
 #   fly deploy
 #
 # Secrets (never put these in this file):
-#   DATABASE_URL            PostgreSQL URL. `fly postgres attach` sets it for you.
-#   CREWSENSE_CORS_ORIGINS  Comma-separated list of allowed frontend origins.
-#   CREWSENSE_SEED_DEMO     "true" or "false" (see README decision on the demo astronaut).
+#   DATABASE_URL            PostgreSQL URL. `fly postgres attach` sets it for you. Required: without
+#                           it the release command and the app both stop with an error.
+#   CREWSENSE_CORS_ORIGINS  Comma-separated list of allowed frontend origins. When unset, no
+#                           browser origin may call the API.
+#   CREWSENSE_SEED_DEMO     "true" seeds the synthetic demo astronaut. Production default: "false".
 #
 # The release command runs once per deploy, before the new machines start.
 # It applies Alembic migrations, so the app never creates tables on PostgreSQL.
 
-app = "crewsense-backend"
-primary_region = "fra"
+app = "nasa-crewsense-health-monitoring"
+primary_region = "ams"
 
 [build]
   # Relative to this file. Dependencies are installed into the image's `python`.
@@ -26,6 +28,8 @@ primary_region = "fra"
 [env]
   # Must match internal_port below.
   PORT = "8080"
+  # Production mode: PostgreSQL is required and SQLite is refused (see app/core/config.py).
+  CREWSENSE_ENV = "production"
 
 [processes]
   app = "python -m uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080"

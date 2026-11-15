@@ -40,7 +40,11 @@ On first start the backend creates `crewsense.db` in the `backend/` folder and s
 | Variable | Default | Purpose |
 |---|---|---|
 | `CREWSENSE_DATABASE_URL` | `sqlite:///<backend>/crewsense.db` | SQLAlchemy database URL. |
-| `CREWSENSE_SEED_DEMO` | `true` | Seed the synthetic Mission Day 087 astronaut on startup. Set to `false` for an empty database. |
+| `CREWSENSE_SEED_DEMO` | `true` locally, `false` in production | Seed the synthetic Mission Day 087 astronaut on startup. Accepts `true` or `false`; any other value stops the process. |
+| `CREWSENSE_CORS_ORIGINS` | the local Vite dev server locally, none in production | Comma-separated browser origins allowed to call the API. `*` is rejected. |
+| `CREWSENSE_ENV` | detected | `production` or `development`. When unset, Fly.io and Railway count as production and everything else as development. |
+
+In production there is no SQLite fallback: if neither `DATABASE_URL` nor `CREWSENSE_DATABASE_URL` is set, or the URL points to SQLite, the process stops with a `ConfigurationError`.
 
 Monitoring thresholds, freshness windows, and baseline minimums live in `app/core/monitoring_config.py`. Each is documented there as a prototype default.
 
@@ -104,8 +108,8 @@ Environment variables (set in Railway, never committed):
 | Variable | Required | Value |
 |---|---|---|
 | `DATABASE_URL` | yes | Provided by the Railway PostgreSQL service. `postgres://` URLs are rewritten to the psycopg driver automatically. |
-| `CREWSENSE_CORS_ORIGINS` | yes | Comma-separated frontend origins, for example `https://<your-project>.vercel.app`. No trailing slash. |
-| `CREWSENSE_SEED_DEMO` | recommended | `true` seeds the synthetic Mission Day 087 astronaut. `false` leaves the database empty of astronauts. |
+| `CREWSENSE_CORS_ORIGINS` | yes | Comma-separated frontend origins, for example `https://<your-project>.vercel.app`. No trailing slash. When unset in production, no browser origin is allowed. |
+| `CREWSENSE_SEED_DEMO` | for the demo | `true` seeds the synthetic Mission Day 087 astronaut. Unset or `false` leaves the database empty of astronauts. |
 | `CREWSENSE_DATABASE_URL` | no | Takes precedence over `DATABASE_URL` when set. Useful for local overrides. |
 
 Schema rules:
@@ -121,3 +125,7 @@ CREWSENSE_TEST_POSTGRES_URL=postgresql+psycopg://user:pass@host:5432/disposable_
 ```
 
 This drops and recreates the `public` schema of the database named in the URL. Use a disposable database only.
+
+### Fly.io
+
+`fly.toml` and `Dockerfile` (in this folder) target the Fly.io app `nasa-crewsense-health-monitoring` in region `ams`. The image sets `CREWSENSE_ENV=production`. The release command `python -m alembic upgrade head` runs before each deploy, and the app listens on port 8080 with the health check `/api/v1/health`. The same variables as in the table above apply, set as Fly secrets.

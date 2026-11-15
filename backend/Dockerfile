@@ -29,7 +29,10 @@ COPY app ./app
 
 # Secrets (DATABASE_URL, CREWSENSE_CORS_ORIGINS, CREWSENSE_SEED_DEMO) come from the
 # platform at runtime. Nothing sensitive is baked into the image.
-ENV PORT=8080
+# The image always runs in production mode: without a PostgreSQL DATABASE_URL it exits with an
+# error instead of creating a SQLite file inside the container.
+ENV PORT=8080 \
+    CREWSENSE_ENV=production
 EXPOSE 8080
 
 CMD ["sh", "-c", "exec python -m uvicorn app.main:create_app --factory --host 0.0.0.0 --port ${PORT}"]
