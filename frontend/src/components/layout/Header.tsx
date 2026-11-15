@@ -44,7 +44,7 @@ export function Header() {
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle bg-bg-surface px-4 py-3">
       <div className="flex flex-wrap items-baseline gap-3">
-        <span className="font-sans text-lg font-semibold">CrewSense</span>
+        <span className="flex items-center gap-2 font-sans text-lg font-bold"><span aria-hidden="true" className="inline-block h-6 w-6 rounded-lg bg-accent-teal" />CrewSense</span>
         <span className="text-xs text-text-secondary">
           {d
             ? `${d.astronaut.display_name} (${d.astronaut.display_id}) · Mission Day ${pad3(d.mission.mission_day)}${loaded?.fromCache ? ' · cached' : ''}`

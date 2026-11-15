@@ -3,7 +3,6 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { ErrorPanel } from '../../components/ui/ErrorPanel';
 import { PageSkeleton } from '../../components/ui/Loading';
-import { SyntheticNotice } from '../../components/ui/SyntheticNotice';
 import { useAlerts } from '../../hooks/useLists';
 import { useDashboard } from '../../hooks/useDashboard';
 import { useMetrics } from '../../hooks/useMetrics';
@@ -27,12 +26,10 @@ export function DashboardPage() {
 
   const { data: d, fromCache, cachedAt } = dash.data;
   const descriptions = new Map<string, string>((metrics.data?.data.items ?? []).map((m): [string, string] => [m.metric_key, m.description]));
-  const containsSynthetic = d.astronaut.is_synthetic || d.indicators.some((i) => i.latest?.is_synthetic);
   const needed = d.scan_requirements.map((r) => `${r.display_name} (${r.reason})`).join(', ');
 
   return (
     <div className="space-y-6">
-      {containsSynthetic ? <SyntheticNotice /> : null}
       {fromCache ? (
         <Card>
           <p className="text-sm text-accent-orange">Offline: showing the last dashboard received at {formatDateTime(cachedAt)}. Values may be outdated.</p>
@@ -40,7 +37,7 @@ export function DashboardPage() {
       ) : null}
 
       <div>
-        <h1 className="text-xl font-sans font-semibold">
+        <h1 className="text-2xl font-sans font-bold">
           {d.astronaut.display_name} · Mission Day {pad3(d.mission.mission_day)}
         </h1>
         <p className="text-sm text-text-secondary">
