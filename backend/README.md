@@ -81,8 +81,8 @@ Test layout:
 
 | Suite | Status |
 |---|---|
-| `tests/domain`, `tests/schemas` | Executed: 54 passing on Python 3.13 with pytest 9. |
-| `tests/api`, `tests/persistence` | **Not yet executed.** The authoring environment did not have FastAPI, SQLAlchemy, or httpx installed. Run `pytest` after `pip install -r requirements.txt` and treat any failure there as open. |
+| `tests/domain`, `tests/schemas` | Executed as part of the 84-test suite (Python 3.13). |
+| `tests/api`, `tests/persistence` | Executed: all 84 tests in the suite pass on Python 3.13 with the pinned requirements. |
 
 ## Known limitations
 
