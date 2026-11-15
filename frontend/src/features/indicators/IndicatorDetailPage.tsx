@@ -32,7 +32,7 @@ export function IndicatorDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Link to="/dashboard" className="text-sm text-accent-cyan underline">
+      <Link to="/dashboard" className="text-sm text-accent-teal underline">
         Back to dashboard
       </Link>
 

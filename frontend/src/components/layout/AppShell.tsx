@@ -23,7 +23,7 @@ export function AppShell() {
                   to={item.to}
                   className={({ isActive }) =>
                     `block rounded-chip px-3 py-2 text-sm ${
-                      isActive ? 'bg-bg-surface-raised text-accent-cyan' : 'text-text-secondary hover:text-text-primary'
+                      isActive ? 'bg-bg-surface-raised text-accent-teal' : 'text-text-secondary hover:text-text-primary'
                     }`
                   }
                 >

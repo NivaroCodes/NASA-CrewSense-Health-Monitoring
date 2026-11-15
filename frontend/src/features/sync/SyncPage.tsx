@@ -117,7 +117,7 @@ export function SyncPage() {
       </header>
 
       {message ? (
-        <p role="alert" className="text-sm text-accent-crimson">
+        <p role="alert" className="text-sm text-accent-red">
           {message}
         </p>
       ) : null}
@@ -172,7 +172,7 @@ export function SyncPage() {
                 ) : null}
                 {confirmId === id ? (
                   <>
-                    <p className="w-full text-xs text-accent-amber">This removes the record from this device. It cannot be undone.</p>
+                    <p className="w-full text-xs text-accent-orange">This removes the record from this device. It cannot be undone.</p>
                     <Button variant="destructive" loading={busy} onClick={() => void onDelete(id)}>
                       Confirm delete
                     </Button>

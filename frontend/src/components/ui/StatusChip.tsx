@@ -14,10 +14,10 @@ const LABEL: Record<string, { text: string; tone: Tone }> = {
 };
 
 const TONE: Record<Tone, { cls: string; marker: string }> = {
-  attention: { cls: 'border-accent-amber text-accent-amber', marker: '▲' },
-  info: { cls: 'border-accent-cyan text-accent-cyan', marker: '●' },
-  neutral: { cls: 'border-status-slate text-text-secondary', marker: '○' },
-  warning: { cls: 'border-dashed border-accent-amber text-accent-amber', marker: '◇' },
+  attention: { cls: 'border-accent-orange text-accent-orange', marker: '▲' },
+  info: { cls: 'border-accent-teal text-accent-teal', marker: '●' },
+  neutral: { cls: 'border-status-muted text-text-secondary', marker: '○' },
+  warning: { cls: 'border-dashed border-accent-orange text-accent-orange', marker: '◇' },
 };
 
 export function StatusChip({ value }: { value: string }) {

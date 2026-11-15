@@ -25,7 +25,7 @@ export function IndicatorCard({ indicator: ind, description, showLink = true }: 
       </div>
 
       {latest ? (
-        <p className="font-mono text-2xl">
+        <p className="font-mono text-2xl font-medium text-text-primary">
           {formatValue(latest.value)} <span className="text-sm text-text-secondary">{latest.unit}</span>
         </p>
       ) : (
@@ -39,15 +39,15 @@ export function IndicatorCard({ indicator: ind, description, showLink = true }: 
 
       {latest ? (
         <p className="text-xs text-text-secondary">
-          Observed {formatDateTime(latest.observed_at)}
+          Observed <span className="font-mono">{formatDateTime(latest.observed_at)}</span>
           {ind.age_hours !== null ? ` · ${formatAgeHours(ind.age_hours)} before reference time` : ''}
         </p>
       ) : null}
 
       {ind.baseline ? (
         <p className="text-xs text-text-secondary">
-          Personal baseline {formatValue(ind.baseline.reference_value)} {ind.baseline.unit} ({ind.baseline.observation_count} observations)
-          {ind.change_pct !== null ? `, change ${formatSignedPercent(ind.change_pct)}` : ''}
+          Personal baseline <span className="font-mono text-accent-teal">{formatValue(ind.baseline.reference_value)} {ind.baseline.unit}</span> ({ind.baseline.observation_count} observations)
+          {ind.change_pct !== null ? <>, change <span className="font-mono">{formatSignedPercent(ind.change_pct)}</span></> : ''}
         </p>
       ) : null}
 
@@ -61,7 +61,7 @@ export function IndicatorCard({ indicator: ind, description, showLink = true }: 
       {description ? <p className="text-xs text-text-secondary">{description}</p> : null}
 
       {showLink ? (
-        <Link to={`/indicators/${ind.metric_key}`} className="text-sm text-accent-cyan underline">
+        <Link to={`/indicators/${ind.metric_key}`} className="text-sm text-accent-teal underline">
           Details and history
         </Link>
       ) : null}

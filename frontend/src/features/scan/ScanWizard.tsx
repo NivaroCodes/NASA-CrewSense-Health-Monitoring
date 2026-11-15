@@ -215,7 +215,7 @@ export function ScanWizard({ dashboard, fromCache, metricsByKey }: Props) {
             <Button variant="secondary" onClick={() => setOutcome(null)}>
               Start another scan
             </Button>
-            <Link to="/dashboard" className="self-center text-sm text-accent-cyan underline">
+            <Link to="/dashboard" className="self-center text-sm text-accent-teal underline">
               Back to dashboard
             </Link>
           </div>
@@ -246,14 +246,14 @@ export function ScanWizard({ dashboard, fromCache, metricsByKey }: Props) {
       {restored ? (
         <Card>
           <p className="text-sm text-text-secondary">An unfinished scan from this device was restored.</p>
-          <button type="button" onClick={() => void discard()} className="mt-2 text-sm text-accent-amber underline">
+          <button type="button" onClick={() => void discard()} className="mt-2 text-sm text-accent-orange underline">
             Discard it and start again
           </button>
         </Card>
       ) : null}
 
       {fromCache ? (
-        <p className="text-sm text-accent-amber">
+        <p className="text-sm text-accent-orange">
           Offline: the requirements come from the last cached dashboard. Submitting now stores the scan on this device.
         </p>
       ) : null}
@@ -287,9 +287,9 @@ export function ScanWizard({ dashboard, fromCache, metricsByKey }: Props) {
 
       {formError ? (
         <div role="alert" className="space-y-2">
-          <p className="text-sm text-accent-crimson">{formError}</p>
+          <p className="text-sm text-accent-red">{formError}</p>
           {serverGeneral.length > 0 ? (
-            <ul className="list-disc pl-5 text-xs text-accent-crimson">
+            <ul className="list-disc pl-5 text-xs text-accent-red">
               {serverGeneral.map((g) => (
                 <li key={g}>{g}</li>
               ))}

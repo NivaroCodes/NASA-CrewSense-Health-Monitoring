@@ -12,7 +12,7 @@ function ApiChip() {
   const [open, setOpen] = useState(false);
   const up = health.data?.database === 'ok';
   const label = health.isPending ? 'API …' : up ? 'API ONLINE' : 'API UNREACHABLE';
-  const tone = up ? 'border-accent-cyan text-accent-cyan' : 'border-accent-amber text-accent-amber';
+  const tone = up ? 'border-accent-teal text-accent-teal' : 'border-accent-orange text-accent-orange';
   return (
     <span className="relative">
       <button
@@ -54,17 +54,17 @@ export function Header() {
       <div className="flex flex-wrap items-center gap-3">
         <ApiChip />
         {pending > 0 ? (
-          <Link to="/sync" className="rounded-chip border border-accent-amber px-2 py-0.5 font-mono text-xs text-accent-amber">
+          <Link to="/sync" className="rounded-chip border border-accent-orange px-2 py-0.5 font-mono text-xs text-accent-orange">
             {pending} queued
           </Link>
         ) : null}
         {rejected > 0 ? (
-          <Link to="/sync" className="rounded-chip border border-accent-crimson px-2 py-0.5 font-mono text-xs text-accent-crimson">
+          <Link to="/sync" className="rounded-chip border border-accent-red px-2 py-0.5 font-mono text-xs text-accent-red">
             {rejected} rejected
           </Link>
         ) : null}
         {!online ? (
-          <span className="rounded-chip bg-accent-amber/10 px-2 py-0.5 font-mono text-xs text-accent-amber">DEVICE OFFLINE</span>
+          <span className="rounded-chip bg-accent-orange/10 px-2 py-0.5 font-mono text-xs text-accent-orange">DEVICE OFFLINE</span>
         ) : null}
       </div>
     </header>

@@ -31,7 +31,7 @@ export function ScanDetailPage() {
 
   return (
     <div className="space-y-4">
-      <Link to="/history" className="text-sm text-accent-cyan underline">
+      <Link to="/history" className="text-sm text-accent-teal underline">
         Back to history
       </Link>
       {body}

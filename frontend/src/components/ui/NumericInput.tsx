@@ -30,14 +30,14 @@ export function NumericInput({ label, unit, value, onChange, rangeHint, error, i
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${hintId} ${errorId}` : hintId}
         className={`w-40 rounded-chip border bg-bg-surface px-3 py-2 font-mono text-lg text-text-primary focus:outline-none ${
-          error ? 'border-accent-crimson' : 'border-border-subtle focus:border-accent-cyan'
+          error ? 'border-accent-red' : 'border-border-subtle focus:border-accent-teal'
         }`}
       />
       <p id={hintId} className="text-xs text-text-secondary">
         Accepted: {rangeHint}
       </p>
       {error ? (
-        <p id={errorId} role="alert" className="text-xs text-accent-crimson">
+        <p id={errorId} role="alert" className="text-xs text-accent-red">
           {error}
         </p>
       ) : null}

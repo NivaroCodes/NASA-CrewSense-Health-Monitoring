@@ -3,10 +3,10 @@ import type { ButtonHTMLAttributes } from 'react';
 type Variant = 'primary' | 'secondary' | 'ghost' | 'destructive';
 
 const VARIANT: Record<Variant, string> = {
-  primary: 'bg-accent-cyan text-bg-base hover:brightness-110',
+  primary: 'bg-accent-teal text-bg-base hover:brightness-110',
   secondary: 'border border-border-subtle bg-bg-surface text-text-primary hover:bg-bg-surface-raised',
   ghost: 'text-text-secondary hover:text-text-primary hover:bg-bg-surface-raised',
-  destructive: 'bg-accent-crimson text-bg-base hover:brightness-110',
+  destructive: 'bg-accent-red text-bg-base hover:brightness-110',
 };
 
 // Disabled buttons must state why (Spec, Section 11, rule 2): pass the reason via `disabledReason`.

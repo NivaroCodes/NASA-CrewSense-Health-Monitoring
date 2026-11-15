@@ -35,7 +35,7 @@ export function DashboardPage() {
       {containsSynthetic ? <SyntheticNotice /> : null}
       {fromCache ? (
         <Card>
-          <p className="text-sm text-accent-amber">Offline: showing the last dashboard received at {formatDateTime(cachedAt)}. Values may be outdated.</p>
+          <p className="text-sm text-accent-orange">Offline: showing the last dashboard received at {formatDateTime(cachedAt)}. Values may be outdated.</p>
         </Card>
       ) : null}
 

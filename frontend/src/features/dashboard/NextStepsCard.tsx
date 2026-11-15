@@ -14,7 +14,7 @@ export function NextStepsCard({ lastScanId }: { lastScanId: number | undefined }
       ) : scan.isPending ? (
         <p className="mt-2 text-sm text-text-secondary">Loading the last scan…</p>
       ) : scan.isError ? (
-        <p className="mt-2 text-sm text-accent-amber">Could not load the last scan's next steps.</p>
+        <p className="mt-2 text-sm text-accent-orange">Could not load the last scan's next steps.</p>
       ) : scan.data.summary.overall_status === 'not_evaluated' ? (
         <p className="mt-2 text-sm text-text-secondary">The last scan was not analysed, so it has no next steps. Submit today's scan to get them.</p>
       ) : scan.data.next_steps.length === 0 ? (

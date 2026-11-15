@@ -38,7 +38,7 @@ export function HistoryPage() {
               <li key={s.id}>
                 <Card className="flex flex-wrap items-center justify-between gap-3">
                   <div className="text-sm">
-                    <Link to={`/scans/${s.id}`} className="text-accent-cyan underline">
+                    <Link to={`/scans/${s.id}`} className="text-accent-teal underline">
                       Scan #{s.id}
                     </Link>{' '}
                     <span className="text-text-secondary">· Mission Day {pad3(s.mission_day)}</span>

@@ -8,7 +8,7 @@ export function ProvenanceBadge({ sourceType, isSynthetic = false }: { sourceTyp
         {sourceType ? (SOURCE_LABEL[sourceType] ?? sourceType) : 'No source'}
       </span>
       {isSynthetic ? (
-        <span className="rounded-chip border border-dashed border-accent-amber px-1.5 py-0.5 font-mono text-xs text-accent-amber" data-synthetic="true">
+        <span className="rounded-chip border border-dashed border-accent-orange px-1.5 py-0.5 font-mono text-xs text-accent-orange" data-synthetic="true">
           Synthetic demo
         </span>
       ) : null}

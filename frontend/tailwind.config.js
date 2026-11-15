@@ -1,32 +1,28 @@
 /** @type {import('tailwindcss').Config} */
-// Design tokens from the Frontend Specification, Phase 3.
-// Components reference these names only; no raw hex values in components.
+// Orbital Instrument design system. Components reference these token names only; no raw hex values in components.
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        'bg-base': '#0B0F19',
-        'bg-surface': '#141B2D',
-        'bg-surface-raised': '#1C2740',
-        'border-subtle': '#223049',
-        'text-primary': '#FFFFFF',
-        'text-secondary': '#8A99AD',
-        'accent-cyan': '#00F0FF',
-        'accent-amber': '#FFB800',
-        'accent-crimson': '#FF2A6D',
-        'status-slate': '#5A6B82',
+        'bg-base': '#F4F3EF', // mineral white page background
+        'bg-surface': '#FFFFFF', // cards and surfaces
+        'bg-surface-raised': '#FAFAF8', // inset panels and table headers
+        'border-subtle': '#E2E1DB',
+        'text-primary': '#202321', // graphite
+        'text-secondary': '#858780', // stone gray
+        'accent-orange': '#D97745', // primary accent (burnt orange)
+        'accent-teal': '#568C83', // secondary accent (muted teal), also focus and links
+        'accent-red': '#C94F4F', // critical alerts only
+        'status-muted': '#858780',
       },
       fontFamily: {
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['"Geist Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        sans: ['Geist', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
-        card: '8px',
-        chip: '4px',
-      },
-      spacing: {
-        // 4 px base scale is Tailwind's default; listed here for reference.
+        card: '10px',
+        chip: '6px',
       },
     },
   },

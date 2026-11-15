@@ -9,7 +9,7 @@ export function ScanProgress({ step, hasMeasurements }: { step: number; hasMeasu
       </p>
       <div className="flex gap-1" aria-hidden="true">
         {labels.map((label, i) => (
-          <span key={label} className={`h-1 flex-1 rounded-chip ${i < current ? 'bg-accent-cyan' : 'bg-bg-surface-raised'}`} />
+          <span key={label} className={`h-1 flex-1 rounded-chip ${i < current ? 'bg-accent-teal' : 'bg-bg-surface-raised'}`} />
         ))}
       </div>
     </div>

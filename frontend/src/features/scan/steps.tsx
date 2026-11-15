@@ -89,7 +89,7 @@ export function StepMeasurements({
                   className="rounded-chip border border-border-subtle bg-bg-surface px-2 py-1 font-mono text-sm"
                 />
                 {errors[`${req.metric_key}:observedAt`] ? (
-                  <span role="alert" className="block text-xs text-accent-crimson">
+                  <span role="alert" className="block text-xs text-accent-red">
                     {errors[`${req.metric_key}:observedAt`]}
                   </span>
                 ) : null}
@@ -109,7 +109,7 @@ export function StepMeasurements({
                   ))}
                 </select>
                 {errors[`${req.metric_key}:sourceType`] ? (
-                  <span role="alert" className="block text-xs text-accent-crimson">
+                  <span role="alert" className="block text-xs text-accent-red">
                     {errors[`${req.metric_key}:sourceType`]}
                   </span>
                 ) : null}
@@ -154,7 +154,7 @@ export function StepWellbeing({
             </label>
           ))}
         </div>
-        {errors.moodScore ? <p role="alert" className="text-xs text-accent-crimson">{errors.moodScore}</p> : null}
+        {errors.moodScore ? <p role="alert" className="text-xs text-accent-red">{errors.moodScore}</p> : null}
       </fieldset>
 
       <NumericInput
@@ -200,10 +200,10 @@ export function StepWellbeing({
           rows={3}
           className="w-full rounded-chip border border-border-subtle bg-bg-surface p-2 text-sm"
         />
-        <span className={`block text-xs ${wellbeing.notes.length > NOTES_MAX ? 'text-accent-crimson' : 'text-text-secondary'}`}>
+        <span className={`block text-xs ${wellbeing.notes.length > NOTES_MAX ? 'text-accent-red' : 'text-text-secondary'}`}>
           {wellbeing.notes.length} / {NOTES_MAX}
         </span>
-        {errors.notes ? <span role="alert" className="block text-xs text-accent-crimson">{errors.notes}</span> : null}
+        {errors.notes ? <span role="alert" className="block text-xs text-accent-red">{errors.notes}</span> : null}
       </label>
     </section>
   );

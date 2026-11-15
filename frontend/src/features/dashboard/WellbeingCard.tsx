@@ -30,7 +30,7 @@ export function WellbeingCard({ wellbeing }: { wellbeing: WellbeingStatus }) {
       {!none ? <p className="mt-3 text-xs text-text-secondary">Assessed {formatDateTime(wellbeing.as_of)}</p> : null}
       <p className="mt-2 text-xs">
         {wellbeing.required_today ? (
-          <span className="text-accent-amber">Today's wellbeing assessment is required.</span>
+          <span className="text-accent-orange">Today's wellbeing assessment is required.</span>
         ) : (
           <span className="text-text-secondary">Recorded for the current mission day.</span>
         )}
