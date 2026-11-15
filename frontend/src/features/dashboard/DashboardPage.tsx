@@ -79,7 +79,7 @@ export function DashboardPage() {
           ) : (
             <ul className="mt-2 space-y-2 text-sm">
               {d.data_notices.map((n) => (
-                <li key={n.id}>
+                <li key={`${n.id}-${n.metric_key}`}>
                   <span className="font-mono text-xs text-text-secondary">{n.id}</span> {n.message}
                 </li>
               ))}

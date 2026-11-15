@@ -63,7 +63,7 @@ export function ScanResultView({ scan }: { scan: ScanOut }) {
           <h2 className="mb-2 text-sm uppercase tracking-wide text-text-secondary">Data notices</h2>
           <ul className="space-y-1 text-sm">
             {scan.data_notices.map((n) => (
-              <li key={n.id}>
+              <li key={`${n.id}-${n.metric_key}`}>
                 <span className="font-mono text-xs text-text-secondary">{n.id}</span> {n.message}
               </li>
             ))}

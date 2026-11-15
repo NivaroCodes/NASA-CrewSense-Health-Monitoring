@@ -38,7 +38,7 @@ The backend allows CORS from `http://localhost:5173` and `http://127.0.0.1:5173`
 | Variable | Default | Purpose |
 |---|---|---|
 | `VITE_API_BASE_URL` | `http://127.0.0.1:8000/api/v1` | Backend base URL. Read only in `src/config.ts`. |
-| `VITE_AS_OF` | empty (server time) | Reference time for the dashboard and scans. The contract's demo value is `2026-11-13T07:30:00Z`. |
+| `VITE_AS_OF` | empty (server time) | Reference time for the dashboard. Keep it empty for real use: a fixed value (the demo's `2026-11-13T07:30:00Z`) keeps the dashboard on that day, so a scan submitted today does not change what it shows. |
 
 ## Checks
 
@@ -60,7 +60,7 @@ npm run build
 
 ## Known limitations
 
-- `POST /scans` is not idempotent on the server. If a request reached the server but its response was lost, a queued retry stores a second scan. An idempotency key needs a backend contract change.
-- Trends use stored measurements only. The backend exposes no baseline band, so the chart shows a single reference line.
+- A scan that timed out or lost its response is retried with the same `client_scan_id`, so the server returns the stored scan instead of storing a second one (contract section 6).
+- Trends use stored measurements only. The backend exposes no baseline band, so the chart shows a single personal baseline line.
 - Blood pressure, activity and lymphocyte count are the only backend indicators in the MVP. Glucose, temperature, sleep and mood are not backend metrics; sleep and mood are self-reported on the scan.
 - The header reads the backend health check every 15 seconds.
