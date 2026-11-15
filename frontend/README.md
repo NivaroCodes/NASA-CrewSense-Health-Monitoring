@@ -1,12 +1,12 @@
 # CrewSense frontend
 
-React, TypeScript and Vite. Connects to the FastAPI backend in the `backend` branch.
+React, TypeScript and Vite. Connects to the FastAPI backend in `../backend`.
 
 > Prototype decision-support tool. Not a medical device. Alerts describe changes from the astronaut's own history.
 
 ## Run the backend first
 
-The backend lives on the `backend` branch. From a checkout of that branch, in its `backend/` folder:
+The backend lives in the `backend/` folder of this repository:
 
 ```bash
 python -m venv .venv
