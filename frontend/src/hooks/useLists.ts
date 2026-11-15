@@ -9,8 +9,12 @@ export function useScans(q: { limit?: number; offset?: number } = {}) {
   return useQuery({ queryKey: ['scans', q], queryFn: () => listScans(q) });
 }
 
-export function useScan(scanId: number) {
-  return useQuery({ queryKey: ['scan', scanId], queryFn: () => getScan(scanId), enabled: Number.isFinite(scanId) });
+export function useScan(scanId: number | undefined) {
+  return useQuery({
+    queryKey: ['scan', scanId],
+    queryFn: () => getScan(scanId as number),
+    enabled: scanId !== undefined && Number.isFinite(scanId),
+  });
 }
 
 export function useAlerts(q: { category?: string; severity?: string; limit?: number }) {

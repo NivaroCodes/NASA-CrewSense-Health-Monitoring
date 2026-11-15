@@ -10,6 +10,7 @@ import { useMetrics } from '../../hooks/useMetrics';
 import { formatDateTime } from '../../utils/datetime';
 import { pad3 } from '../../utils/format';
 import { AlertList } from './AlertList';
+import { NextStepsCard } from './NextStepsCard';
 import { IndicatorCard } from './IndicatorCard';
 import { MonitoringBanner } from './MonitoringBanner';
 import { WellbeingCard } from './WellbeingCard';
@@ -70,6 +71,7 @@ export function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <WellbeingCard wellbeing={d.wellbeing} />
+        <NextStepsCard lastScanId={d.last_scan?.id} />
         <Card>
           <h2 className="text-sm font-semibold">Data notices</h2>
           {d.data_notices.length === 0 ? (
