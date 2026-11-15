@@ -1,0 +1,52 @@
+# Fly.io configuration for the CrewSense FastAPI backend.
+#
+# Deploy from the backend folder (Fly reads this file from the current directory):
+#   fly launch --no-deploy --copy-config --name <unique-app-name>   (first time only)
+#   fly secrets set DATABASE_URL="<postgres url>" CREWSENSE_CORS_ORIGINS="https://<vercel-domain>"
+#   fly deploy
+#
+# Secrets (never put these in this file):
+#   DATABASE_URL            PostgreSQL URL. `fly postgres attach` sets it for you.
+#   CREWSENSE_CORS_ORIGINS  Comma-separated list of allowed frontend origins.
+#   CREWSENSE_SEED_DEMO     "true" or "false" (see README decision on the demo astronaut).
+#
+# The release command runs once per deploy, before the new machines start.
+# It applies Alembic migrations, so the app never creates tables on PostgreSQL.
+
+app = "crewsense-backend"
+primary_region = "fra"
+
+[deploy]
+  release_command = "python -m alembic upgrade head"
+
+[env]
+  # Must match internal_port below.
+  PORT = "8080"
+
+[processes]
+  app = "python -m uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080"
+
+[http_service]
+  internal_port = 8080
+  processes = ["app"]
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+  # Liveness and database reachability, from GET /api/v1/health.
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/v1/health"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
