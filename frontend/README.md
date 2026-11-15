@@ -64,3 +64,13 @@ npm run build
 - Trends use stored measurements only. The backend exposes no baseline band, so the chart shows a single personal baseline line.
 - Blood pressure, activity and lymphocyte count are the only backend indicators in the MVP. Glucose, temperature, sleep and mood are not backend metrics; sleep and mood are self-reported on the scan.
 - The header reads the backend health check every 15 seconds.
+
+## Deployment (Vercel)
+
+- Import the repository in Vercel and set the **Root Directory** to `frontend`. Framework: Vite (detected from `vercel.json`).
+- Environment variables (Project Settings > Environment Variables):
+  - `VITE_API_BASE_URL`: the Railway API base URL, ending in `/api/v1`. Required. A production build with this unset fails at startup with a clear message.
+  - Leave `VITE_AS_OF` unset.
+- `VITE_` variables are public in the browser bundle. Do not put secrets in them.
+- `vercel.json` rewrites every path to `index.html`, so deep links such as `/dashboard` and `/scans/7` load the app.
+- The backend must list the Vercel domain in `CREWSENSE_CORS_ORIGINS`.
