@@ -16,6 +16,10 @@
 app = "crewsense-backend"
 primary_region = "fra"
 
+[build]
+  # Relative to this file. Dependencies are installed into the image's `python`.
+  dockerfile = "Dockerfile"
+
 [deploy]
   release_command = "python -m alembic upgrade head"
 

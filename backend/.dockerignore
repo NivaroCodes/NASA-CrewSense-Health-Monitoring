@@ -1,0 +1,20 @@
+# Keep the build context small and free of local data, secrets and caches.
+.git
+.gitignore
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.venv
+venv
+tests
+docs
+README.md
+railway.json
+fly.toml
+pytest.ini
+
+# Local SQLite databases and environment files must never enter an image.
+*.db
+*.db-journal
+.env
+.env.*
